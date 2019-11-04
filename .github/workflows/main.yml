@@ -22,7 +22,7 @@ jobs:
     - name: Build Mattermost docker environment
       run: docker pull mattermost/platform && docker run --name mattermost-preview -d --publish 8065:8065 --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview
     - name: Create Mattermost test users
-      run: docker exec -it projects_mattermost-preview_1 bash && mattermost user create --system_admin --email admin@example.com --username admin --password Admin12345!
+      run: docker exec -it $! bash && mattermost user create --system_admin --email admin@example.com --username admin --password Admin12345!
 
   build_latest:
     name: Node latest
