@@ -95,6 +95,7 @@ class Client extends EventEmitter {
         if (data) {
             if (!data.id) {
                 this.logger.error('Login call failed', JSON.stringify(data));
+                this.emit('error', data);
                 this.authenticated = false;
                 this._reconnecting = false;
                 return this.reconnect();
@@ -307,44 +308,43 @@ class Client extends EventEmitter {
             this._connecting = false;
             this.connected = false;
             this.socketUrl = null;
-            if (this.autoReconnect) {
-                return this.reconnect();
-            }
-            return true;
+            return this.reconnect();
         });
     }
 
     reconnect() {
-        if (this._reconnecting) {
-            this.logger.info('WARNING: Already reconnecting.');
+        if (this.autoReconnect) {
+            if (this._reconnecting) {
+                this.logger.info('WARNING: Already reconnecting.');
+            }
+            this._connecting = false;
+            this._reconnecting = true;
+    
+            if (this._pongTimeout) {
+                clearInterval(this._pongTimeout);
+                this._pongTimeout = null;
+            }
+            this.authenticated = false;
+    
+            if (this.ws) {
+                this.ws.close();
+            }
+    
+            this._connAttempts = this._connAttempts + 1;
+    
+            const timeout = this._connAttempts * 1000;
+            this.logger.info('Reconnecting in %dms', timeout);
+            return setTimeout(
+                () => {
+                    this.logger.info('Attempting reconnect');
+                    if (this.personalAccessToken) {
+                        return this.tokenLogin(this.token);
+                    }
+                    return this.login(this.email, this.password, this.mfaToken);
+                },
+                timeout,
+            );
         }
-        this._connecting = false;
-        this._reconnecting = true;
-
-        if (this._pongTimeout) {
-            clearInterval(this._pongTimeout);
-            this._pongTimeout = null;
-        }
-        this.authenticated = false;
-
-        if (this.ws) {
-            this.ws.close();
-        }
-
-        this._connAttempts = this._connAttempts + 1;
-
-        const timeout = this._connAttempts * 1000;
-        this.logger.info('Reconnecting in %dms', timeout);
-        return setTimeout(
-            () => {
-                this.logger.info('Attempting reconnect');
-                if (this.personalAccessToken) {
-                    return this.tokenLogin(this.token);
-                }
-                return this.login(this.email, this.password, this.mfaToken);
-            },
-            timeout,
-        );
     }
 
 
