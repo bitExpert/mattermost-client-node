@@ -16,9 +16,9 @@ jobs:
       with:
         node-version: ${{ matrix.node }}
     - name: Install dependencies
-      run: npm install
+      run: yarn
     - name: eslint check
-      run: npm test
+      run: yarn test
     - name: Build Mattermost environment and create test users
       run: |
           docker pull mattermost/platform && \
@@ -32,6 +32,6 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: install dependencies
-      run: npm install
+      run: yarn
     - name: eslint check
-      run: npm test
+      run: yarn test
