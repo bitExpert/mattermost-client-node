@@ -319,19 +319,19 @@ class Client extends EventEmitter {
             }
             this._connecting = false;
             this._reconnecting = true;
-    
+
             if (this._pongTimeout) {
                 clearInterval(this._pongTimeout);
                 this._pongTimeout = null;
             }
             this.authenticated = false;
-    
+
             if (this.ws) {
                 this.ws.close();
             }
-    
+
             this._connAttempts = this._connAttempts + 1;
-    
+
             const timeout = this._connAttempts * 1000;
             this.logger.info('Reconnecting in %dms', timeout);
             return setTimeout(
@@ -345,6 +345,7 @@ class Client extends EventEmitter {
                 timeout,
             );
         }
+        return false;
     }
 
 
