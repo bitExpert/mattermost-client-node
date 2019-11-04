@@ -1,6 +1,6 @@
 class User {
     constructor(data = {}) {
-        const initUserData = key => {
+        const initUserData = (key) => {
             this[key] = key;
         };
 

@@ -1,6 +1,6 @@
 class Message {
     constructor(data = {}) {
-        const initMessageData = key => {
+        const initMessageData = (key) => {
             this[key] = key;
         };
 

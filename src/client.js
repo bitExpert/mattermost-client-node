@@ -104,8 +104,6 @@ class Client extends EventEmitter {
             if (!this.personalAccessToken) {
                 this.token = headers.token;
             }
-            // TODO: split into multiple lines
-
             this.socketUrl = this._getSocketUrl();
             this.logger.info(`Websocket URL: ${this.socketUrl}`);
             this.self = new User(data);
@@ -128,7 +126,7 @@ class Client extends EventEmitter {
 
     _onLoadUsers(data, _headers, params) {
         if (data && !data.error) {
-            data.forEach(user => { this.users[user.id] = user; });
+            data.forEach((user) => { this.users[user.id] = user; });
             this.logger.info(`Found ${Object.keys(data).length} profiles.`);
             this.emit('profilesLoaded', data);
             if ((Object.keys(data).length > 0) && (params.page != null)) {
@@ -138,6 +136,7 @@ class Client extends EventEmitter {
             this.logger.error('Failed to load profiles from server.');
             return this.emit('error', { msg: 'failed to load profiles' });
         }
+        return this.emit('error', { msg: 'data missing or incorrect' });
     }
 
     _onLoadUser(data, _headers, _params) {
@@ -145,11 +144,12 @@ class Client extends EventEmitter {
             this.users[data.id] = data;
             return this.emit('profilesLoaded', [data]);
         }
+        return this.emit('error', { msg: 'data missing or incorrect' });
     }
 
     _onChannels(data, _headers, _params) {
         if (data && !data.error) {
-            data.forEach(channel => { this.channels[channel.id] = channel; });
+            data.forEach((channel) => { this.channels[channel.id] = channel; });
             this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
             return this.emit('channelsLoaded', data);
         }
@@ -183,7 +183,7 @@ class Client extends EventEmitter {
             this.emit('teamsLoaded', data);
             this.logger.info(`Found ${Object.keys(this.teams).length} teams.`);
             this.teamID = Object.keys(this.teams)
-                .find(team => {
+                .find((team) => {
                     const isTeamFound = team.name.toLowerCase() === this.group.toLowerCase();
                     this.logger.debug(`Testing ${team.name} == ${this.group}`);
                     if (isTeamFound) {
@@ -290,10 +290,11 @@ class Client extends EventEmitter {
                     this.logger.error('Last pong is too old: %d', (Date.now() - this._lastPong) / 1000);
                     this.authenticated = false;
                     this.connected = false;
-                    return this.reconnect();
+                    this.reconnect();
+                    return;
                 }
                 this.logger.info('ping');
-                return this._send({ action: 'ping' });
+                this._send({ action: 'ping' });
             },
             this._pingInterval);
             return this._pongTimeout;
@@ -309,8 +310,8 @@ class Client extends EventEmitter {
             if (this.autoReconnect) {
                 return this.reconnect();
             }
+            return true;
         });
-        return true;
     }
 
     reconnect() {
@@ -415,7 +416,7 @@ class Client extends EventEmitter {
     }
 
     getUserByEmail(email) {
-        return this.users.find(user => user.email === email);
+        return this.users.find((user) => user.email === email);
     }
 
     getUserDirectMessageChannel(userID, callback) {
@@ -432,7 +433,7 @@ class Client extends EventEmitter {
             if (callback != null) { callback(channel); }
             return;
         }
-        return this.createDirectChannel(userID, callback);
+        this.createDirectChannel(userID, callback);
     }
 
     getAllChannels() {
@@ -445,16 +446,17 @@ class Client extends EventEmitter {
 
     customMessage(postData, channelID) {
         let chunks;
-        if (postData.message != null) {
+        const postDataExt = { ...postData };
+        if (postDataExt.message != null) {
             chunks = this._chunkMessage(postData.message);
-            postData.message = chunks.shift();
+            postDataExt.message = chunks.shift();
         }
-        postData.channel_id = channelID;
+        postDataExt.channel_id = channelID;
         return this._apiCall('POST', '/posts', postData, (_data, _headers) => {
             this.logger.debug('Posted custom message.');
             if ((chunks != null ? chunks.length : undefined) > 0) {
                 this.logger.debug(`Recursively posting remainder of customMessage: (${chunks.length})`);
-                postData.message = chunks.join();
+                postDataExt.message = chunks.join();
                 return this.customMessage(postData, channelID);
             }
             return true;
@@ -520,13 +522,13 @@ class Client extends EventEmitter {
         const postData = [userID, this.self.id];
         return this._apiCall('POST', '/channels/direct', postData, (data, _headers) => {
             this.logger.info('Created Direct Channel.');
-            if (callback != null) { return callback(data); }
+            return (callback != null) ? callback(data) : false;
         });
     }
 
     findChannelByName(name) {
         const foundChannel = Object.keys(this.channels)
-            .find(channel => {
+            .find((channel) => {
                 const channelName = this.channels[channel].name;
                 const channelDisplayName = this.channels[channel].display_name;
                 return channelName === name || channelDisplayName === name;
@@ -534,7 +536,7 @@ class Client extends EventEmitter {
         return foundChannel || null;
     }
 
-    _chunkMessage(msg) {
+    static _chunkMessage(msg) {
         if (!msg) {
             return [''];
         }
@@ -597,15 +599,16 @@ class Client extends EventEmitter {
     // Private functions
     //
     _send(message) {
+        const messageExt = { ...message };
         if (!this.connected) {
             return false;
         }
         this._messageID = this._messageID + 1;
-        message.id = this._messageID;
-        message.seq = message.id;
+        messageExt.id = this._messageID;
+        messageExt.seq = message.id;
         this._pending[message.id] = message;
-        this.ws.send(JSON.stringify(message));
-        return message;
+        this.ws.send(JSON.stringify(messageExt));
+        return messageExt;
     }
 
 
@@ -658,6 +661,7 @@ class Client extends EventEmitter {
                 }
                 return callback({ id: null, error: `API response: ${res.statusCode} ${JSON.stringify(value)}` }, res.headers, callback_params);
             }
+            return false;
         });
     }
 }
