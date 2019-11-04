@@ -4,7 +4,9 @@
   "description": "Mattermost client",
   "main": "./src/client.js",
   "scripts": {
-    "test": "eslint src"
+    "test": "yarn run test:lint && yarn run test:unit",
+    "test:lint": "eslint src",
+    "test:unit": "jest"
   },
   "repository": {
     "type": "git",
@@ -31,6 +33,7 @@
   "devDependencies": {
     "eslint": "^6.5.1",
     "eslint-config-airbnb-base": "^14.0.0",
-    "eslint-plugin-import": "^2.18.2"
+    "eslint-plugin-import": "^2.18.2",
+    "jest": "^24.9.0"
   }
 }
