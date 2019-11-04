@@ -1,10 +1,11 @@
 class Message {
-    constructor(data = {}) {
-        const initMessageData = (key) => {
-            this[key] = key;
-        };
-
-        Object.keys(data).forEach(initMessageData);
+    constructor(data) {
+        if (!data) {
+            data = {};
+        }
+        for (const k in data) {
+            this[k] = data[k];
+        }
     }
 }
 

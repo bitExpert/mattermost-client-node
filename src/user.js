@@ -1,10 +1,11 @@
 class User {
-    constructor(data = {}) {
-        const initUserData = (key) => {
-            this[key] = key;
-        };
-
-        Object.keys(data).forEach(initUserData);
+    constructor(data) {
+        if (!data) {
+            data = {};
+        }
+        for (const k in data) {
+            this[k] = data[k];
+        }
     }
 }
 

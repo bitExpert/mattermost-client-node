@@ -15,7 +15,6 @@ const usersRoute = '/users';
 const messageMaxRunes = 4000;
 
 const tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
-const useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
 
 class Client extends EventEmitter {
     constructor(host, group, options) {
@@ -23,6 +22,11 @@ class Client extends EventEmitter {
         this.host = host;
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
+
+        this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
+        if (typeof options.useTLS !== 'undefined') {
+            this.useTLS = options.useTLS;
+        }
 
         this.authenticated = false;
         this.connected = false;
@@ -54,6 +58,22 @@ class Client extends EventEmitter {
         this._connAttempts = 0;
 
         this.logger = new Log(process.env.MATTERMOST_LOG_LEVEL || 'info');
+        if (typeof options.logger !== 'undefined') {
+            switch (options.logger) {
+            case 'noop':
+                this.logger = {
+                    debug: () => {},
+                    info: () => {},
+                    notice: () => {},
+                    warning: () => {},
+                    error: () => {},
+                };
+                break;
+            default:
+                this.logger = new Log(process.env.MATTERMOST_LOG_LEVEL || options.logger);
+                break;
+            }
+        }
 
         // Binding because async calls galore
         this._onLogin = this._onLogin.bind(this);
@@ -119,25 +139,26 @@ class Client extends EventEmitter {
     }
 
     _getSocketUrl() {
-        const protocol = useTLS ? 'wss://' : 'ws://';
+        const protocol = this.useTLS ? 'wss://' : 'ws://';
         const httpPort = this.options.httpPort ? `:${this.options.httpPort}` : '';
-        const wssPort = useTLS && this.options.wssPort ? `:${this.options.wssPort}` : httpPort;
+        const wssPort = this.useTLS && this.options.wssPort ? `:${this.options.wssPort}` : httpPort;
         return `${protocol + this.host + wssPort + apiPrefix}/websocket`;
     }
 
     _onLoadUsers(data, _headers, params) {
         if (data && !data.error) {
-            data.forEach((user) => { this.users[user.id] = user; });
+            data.forEach((user) => {
+                this.users[user.id] = user;
+            });
             this.logger.info(`Found ${Object.keys(data).length} profiles.`);
             this.emit('profilesLoaded', data);
-            if ((Object.keys(data).length > 0) && (params.page != null)) {
+            if ((Object.keys(data).length > 200) && (params.page != null)) {
                 return this.loadUsers(params.page + 1); // Trigger next page loading
             }
-        } else {
-            this.logger.error('Failed to load profiles from server.');
-            return this.emit('error', { msg: 'failed to load profiles' });
+            return this.users;
         }
-        return this.emit('error', { msg: 'data missing or incorrect' });
+        this.logger.error('Failed to load profiles from server.');
+        return this.emit('error', { msg: 'failed to load profiles' });
     }
 
     _onLoadUser(data, _headers, _params) {
@@ -183,18 +204,18 @@ class Client extends EventEmitter {
             this.teams = data;
             this.emit('teamsLoaded', data);
             this.logger.info(`Found ${Object.keys(this.teams).length} teams.`);
-            this.teamID = Object.keys(this.teams)
+            this.teams
                 .find((team) => {
                     const isTeamFound = team.name.toLowerCase() === this.group.toLowerCase();
                     this.logger.debug(`Testing ${team.name} == ${this.group}`);
                     if (isTeamFound) {
+                        this.teamID = team.id;
                         this.logger.info(`Found team! ${team.id}`);
                     }
-                    return isTeamFound && team.id;
+                    return isTeamFound;
                 });
             this.loadUsers();
             this.loadChannels();
-            return this.connect(); // FIXME
         }
         this.logger.error('Failed to load Teams...');
         return this.reconnect();
@@ -221,6 +242,7 @@ class Client extends EventEmitter {
     }
 
     getTeams() {
+        this.logger.info('GET TEAMS!!!!!!!!!1');
         const uri = `${usersRoute}/me/teams`;
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onTeams);
@@ -623,8 +645,8 @@ class Client extends EventEmitter {
         let post_data = '';
         if (params != null) { post_data = JSON.stringify(params); }
         const options = {
-            uri: (useTLS ? 'https://' : 'http://') + this.host + ((this.options.httpPort != null) ? `:${this.options.httpPort}` : '') + apiPrefix + path,
-            safeMethod,
+            uri: (this.useTLS ? 'https://' : 'http://') + this.host + ((this.options.httpPort != null) ? `:${this.options.httpPort}` : '') + apiPrefix + path,
+            method: safeMethod,
             json: params,
             rejectUnauthorized: tlsverify,
             headers: {
