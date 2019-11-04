@@ -4,7 +4,6 @@ on: [push, pull_request]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,11 +18,14 @@ jobs:
       run: npm install
     - name: eslint check
       run: npm test
+    - name: Build Mattermost docker environment
+      run: docker pull mattermost/platform && docker run --name mattermost-preview -d --publish 8065:8065 --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview
+
 
   build_latest:
     name: Node latest
     runs-on: ubuntu-latest
-    container: node:current
+    container: node:latest
     steps:
     - uses: actions/checkout@v1
     - name: install dependencies
