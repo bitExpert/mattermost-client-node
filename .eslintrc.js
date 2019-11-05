@@ -12,9 +12,11 @@ module.exports = {
     Atomics: 'readonly',
     SharedArrayBuffer: 'readonly',
   },
+  parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 2018,
   },
+  plugins: ['@typescript-eslint'],
   rules: {
       'indent': [2, 4],
       'no-underscore-dangle': 'off',

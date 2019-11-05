@@ -1,5 +1,5 @@
 /* eslint-disable */
-const Client = require('../../src/client.js');
+const Client = require('../../src/client.ts');
 const User = require('../../src/user.js');
 
 /*

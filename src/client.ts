@@ -1,6 +1,6 @@
 const request = require('request');
-const WebSocket = require('ws');
-const TextEncoder = require('text-encoding');
+const WS = require('ws');
+const TextEncoding = require('text-encoding');
 const Log = require('log');
 const querystring = require('querystring');
 const { EventEmitter } = require('events');
@@ -14,7 +14,7 @@ const messageMaxRunes = 4000;
 const defaultPingInterval = 60000;
 
 class Client extends EventEmitter {
-    constructor(host, group, options) {
+    constructor(host: string, group: string, options: any) {
         super();
         this.host = host;
         this.group = group;
@@ -93,7 +93,7 @@ class Client extends EventEmitter {
         this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
     }
 
-    login(email, password, mfaToken) {
+    login(email: string, password: string, mfaToken: string) {
         this.hasAccessToken = false;
         this.email = email;
         this.password = password;
@@ -112,18 +112,18 @@ class Client extends EventEmitter {
     }
 
     // revoke a user session
-    revoke(userID) {
+    revoke(userID: string) {
         return this._apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`,
             {}, this._onRevoke);
     }
 
-    createUser(user) {
+    createUser(user: any) {
         const postData = user;
         const uri = `${usersRoute}?iid=`;
         return this._apiCall('POST', uri, postData, this._onCreateUser);
     }
 
-    tokenLogin(token) {
+    tokenLogin(token: string) {
         this.token = token;
         this.hasAccessToken = true;
         this.logger.info('Logging in with personal access token...');
@@ -131,7 +131,7 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onLogin);
     }
 
-    _onLogin(data, headers) {
+    _onLogin(data: any, headers: any) {
         if (data) {
             if (!data.id) {
                 this.logger.error('Login call failed', JSON.stringify(data));
@@ -165,11 +165,11 @@ class Client extends EventEmitter {
         return `${protocol + this.host + wssPort + apiPrefix}/websocket`;
     }
 
-    _onRevoke(data) {
+    _onRevoke(data: any) {
         return this.emit('sessionRevoked', data);
     }
 
-    _onCreateUser(data) {
+    _onCreateUser(data: any) {
         if (data.id) {
             this.logger.info('Creating user...');
             return this.emit('created', data);
@@ -178,9 +178,9 @@ class Client extends EventEmitter {
         return this.emit('error', data);
     }
 
-    _onLoadUsers(data, _headers, params) {
+    _onLoadUsers(data: any, _headers: any, params: any) {
         if (data && !data.error) {
-            data.forEach((user) => {
+            data.forEach((user: any) => {
                 this.users[user.id] = user;
             });
             this.logger.info(`Found ${Object.keys(data).length} profiles.`);
@@ -194,7 +194,7 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to load profiles' });
     }
 
-    _onLoadUser(data, _headers, _params) {
+    _onLoadUser(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.users[data.id] = data;
             return this.emit('profilesLoaded', [data]);
@@ -202,9 +202,9 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'data missing or incorrect' });
     }
 
-    _onChannels(data, _headers, _params) {
+    _onChannels(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
-            data.forEach((channel) => {
+            data.forEach((channel: any) => {
                 this.channels[channel.id] = channel;
             });
             this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
@@ -214,9 +214,9 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get channel list' });
     }
 
-    _onUsersOfChannel(data, headers, params) {
+    _onUsersOfChannel(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
-            Object.entries(data).forEach((channel) => {
+            Object.entries(data).forEach((channel: any) => {
                 this.channels[channel.id] = channel;
             });
             this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
@@ -226,7 +226,7 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get channel list' });
     }
 
-    _onMessages(data, headers, params) {
+    _onMessages(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
             return this.emit('messagesLoaded', data);
@@ -235,7 +235,7 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get messages' });
     }
 
-    _onUnreadsForChannels(data, headers, params) {
+    _onUnreadsForChannels(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} information about unreads.`);
             return this.emit('channelsUnreadsLoaded', data);
@@ -244,7 +244,7 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get unreads for channels' });
     }
 
-    _onChannelLastViewed(data, headers, params) {
+    _onChannelLastViewed(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} for last reads.`);
             return this.emit('channelLastViewedLoaded', data);
@@ -253,7 +253,7 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get last reads for channel(s)' });
     }
 
-    _onMembersFromChannels(data, headers, params) {
+    _onMembersFromChannels(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} channels.`);
             return this.emit('membersFromChannelsLoaded', data);
@@ -262,7 +262,7 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get all members from channels' });
     }
 
-    _onPreferences(data, _headers, _params) {
+    _onPreferences(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.preferences = data;
             this.emit('preferencesLoaded', data);
@@ -272,7 +272,7 @@ class Client extends EventEmitter {
         return this.reconnect();
     }
 
-    _onMe(data, _headers, _params) {
+    _onMe(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.me = data;
             this.emit('meLoaded', data);
@@ -282,13 +282,13 @@ class Client extends EventEmitter {
         return this.reconnect();
     }
 
-    _onTeams(data, _headers, _params) {
+    _onTeams(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.teams = data;
             this.emit('teamsLoaded', data);
             this.logger.info(`Found ${Object.keys(this.teams).length} teams.`);
             this.teams
-                .find((team) => {
+                .find((team: any) => {
                     const isTeamFound = team.name.toLowerCase() === this.group.toLowerCase();
                     this.logger.debug(`Testing ${team.name} == ${this.group}`);
                     if (isTeamFound) {
@@ -304,7 +304,7 @@ class Client extends EventEmitter {
         return this.reconnect();
     }
 
-    channelRoute(channelId) {
+    channelRoute(channelId: string) {
         return `${this.teamRoute()}/channels/${channelId}`;
     }
 
@@ -330,7 +330,7 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onTeams);
     }
 
-    loadUsers(page = 0, byTeam = true) {
+    loadUsers(page: number = 0, byTeam: boolean = true) {
         let uri = `/users?page=${page}&per_page=200`;
         // get onlmm_get_channelsy users of team (surveybot NOT included)
         if (byTeam) {
@@ -340,7 +340,7 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onLoadUsers, { page });
     }
 
-    loadUser(user_id) {
+    loadUser(user_id: string) {
         const uri = `/users/${user_id}`;
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onLoadUser, {});
@@ -352,17 +352,17 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onChannels);
     }
 
-    loadUsersFromChannel(channel_id) {
+    loadUsersFromChannel(channel_id: string) {
         const uri = `/channels/${channel_id}/members`;
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onUsersOfChannel);
     }
 
-    loadMessagesFromChannel(channel_id, options = {}) {
+    loadMessagesFromChannel(channel_id: string, options: any = {}) {
         let uri = `/channels/${channel_id}/posts`;
         const allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
-        const params = {};
-        Object.entries(options).forEach((option) => {
+        const params: any = {};
+        Object.entries(options).forEach((option: any) => {
             if (allowedOptions.indexOf(option) >= 0) {
                 params[option] = options[option];
             }
@@ -381,7 +381,7 @@ class Client extends EventEmitter {
 
     // to mark messages as read (e.g. after loading messages of channel)
     // trigger loadChannelLastViewed method
-    loadChannelLastViewed(channel_id, prev_channel_id = null) {
+    loadChannelLastViewed(channel_id: string, prev_channel_id: string | null = null) {
         const postData = {
             channel_id,
             prev_channel_id,
@@ -412,7 +412,7 @@ class Client extends EventEmitter {
 
         this._connecting = true;
         this.logger.info('Connecting...');
-        const options = { rejectUnauthorized: this.tlsverify };
+        const options: any = { rejectUnauthorized: this.tlsverify };
 
         if (this.httpProxy) { options.agent = new HttpsProxyAgent(this.httpProxy); }
 
@@ -421,9 +421,9 @@ class Client extends EventEmitter {
             this.ws.close();
             this.ws = null;
         }
-        this.ws = new WebSocket(this.socketUrl, options);
+        this.ws = new WS(this.socketUrl, options);
 
-        this.ws.on('error', (error) => {
+        this.ws.on('error', (error: any) => {
             this._connecting = false;
             return this.emit('error', error);
         });
@@ -463,9 +463,9 @@ class Client extends EventEmitter {
             return this._pongTimeout;
         });
 
-        this.ws.on('message', (data, _flags) => this.onMessage(JSON.parse(data)));
+        this.ws.on('message', (data: any, _flags: any) => this.onMessage(JSON.parse(data)));
 
-        this.ws.on('close', (code, message) => {
+        this.ws.on('close', (code: any, message: any) => {
             this.emit('close', code, message);
             this._connecting = false;
             this.connected = false;
@@ -524,7 +524,7 @@ class Client extends EventEmitter {
         return true;
     }
 
-    onMessage(message) {
+    onMessage(message: any) {
         this.emit('raw_message', message);
         const m = new Message(message);
         switch (message.event) {
@@ -574,7 +574,7 @@ class Client extends EventEmitter {
         }
     }
 
-    getUserDirectMessageChannel(userID, callback) {
+    getUserDirectMessageChannel(userID: string, callback: any) {
         // check if channel already exists
         let channel = `${this.self.id}__${userID}`;
         channel = this.findChannelByName(channel);
@@ -595,7 +595,7 @@ class Client extends EventEmitter {
         return this.channels;
     }
 
-    getChannelByID(id) {
+    getChannelByID(id: string) {
         return this.channels[id];
     }
 
@@ -603,24 +603,24 @@ class Client extends EventEmitter {
         return this.users;
     }
 
-    getUserByID(id) {
+    getUserByID(id: string) {
         return this.users[id];
     }
 
-    getUserByEmail(email) {
+    getUserByEmail(email: string) {
         return Object.entries(this.users)
-            .find((user) => user.email === email);
+            .find((user: any) => user.email === email);
     }
 
-    customMessage(postData, channelID) {
-        let chunks;
+    customMessage(postData: any, channelID: string) {
+        let chunks: any;
         const postDataExt = { ...postData };
         if (postDataExt.message != null) {
             chunks = this._chunkMessage(postData.message);
             postDataExt.message = chunks.shift();
         }
         postDataExt.channel_id = channelID;
-        return this._apiCall('POST', '/posts', postData, (_data, _headers) => {
+        return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
             this.logger.debug('Posted custom message.');
             if ((chunks != null ? chunks.length : undefined) > 0) {
                 this.logger.debug(`Recursively posting remainder of customMessage: (${chunks.length})`);
@@ -631,7 +631,7 @@ class Client extends EventEmitter {
         });
     }
 
-    dialog(trigger_id, url, dialog) {
+    dialog(trigger_id: string, url: string, dialog: any) {
         const postData = {
             trigger_id,
             url,
@@ -641,64 +641,71 @@ class Client extends EventEmitter {
             'POST',
             '/actions/dialogs/open',
             postData,
-            (_data, _headers) => {
+            (_data: any, _headers: any) => {
                 this.logger.debug('Created dialog');
             },
         );
     }
 
-    editPost(post_id, msg) {
-        let postData = msg;
+    editPost(post_id: string, msg: any) {
+        let postData: any = msg;
         if (typeof msg === 'string') {
             postData = {
                 id: post_id,
                 message: msg,
             };
         }
-        return this._apiCall('PUT', `/posts/${post_id}`, postData, (_data, _headers) => {
+        return this._apiCall('PUT', `/posts/${post_id}`, postData, (_data: any, _headers: any) => {
             this.logger.debug('Edited post');
         });
     }
 
-    uploadFile(channel_id, file, callback) {
+    uploadFile(channel_id: string, file: any, callback: any) {
         const formData = {
             channel_id,
             files: file,
         };
 
-        return this._apiCall({ method: 'POST' }, '/files', formData, (data, _headers) => {
-            this.logger.debug('Posted file');
-            return callback(data);
-        });
+        return this._apiCall(
+            'POST',
+            '/files',
+            formData,
+            (data: any, _headers: any) => {
+                this.logger.debug('Posted file');
+                return callback(data);
+            },
+            {},
+            true,
+        );
     }
 
-    react(messageID, emoji) {
+    react(messageID: string, emoji: string) {
         const postData = {
             user_id: this.self.id,
             post_id: messageID,
             emoji_name: emoji,
             create_at: 0,
         };
-        return this._apiCall('POST', '/reactions', postData, (_data, _headers) => {
+        return this._apiCall('POST', '/reactions', postData, (_data: any, _headers: any) => {
             this.logger.debug('Created reaction');
         });
     }
 
-    unreact(messageID, emoji) {
+    unreact(messageID: string, emoji: string) {
         const uri = `/users/me/posts/${messageID}/reactions/${emoji}`;
-        return this._apiCall('DELETE', uri, [], (_data, _headers) => {
+        return this._apiCall('DELETE', uri, [], (_data: any, _headers: any) => {
             this.logger.debug('Deleted reaction');
         });
     }
 
     // type "D"
-    createDirectChannel(userID, callback) {
+    createDirectChannel(userID: string, callback: any) {
         const postData = [userID, this.self.id];
         return this._apiCall(
             'POST',
             '/channels/direct',
             postData,
-            (data, _headers) => {
+            (data: any, _headers: any) => {
                 this.logger.info('Created Direct Channel.');
                 return (callback != null) ? callback(data) : false;
             },
@@ -706,12 +713,12 @@ class Client extends EventEmitter {
     }
 
     // type "G"
-    createGroupChannel(userIDs, callback) {
+    createGroupChannel(userIDs: string, callback: any) {
         return this._apiCall(
             'POST',
             '/channels/group',
             userIDs,
-            (data, headers) => {
+            (data: any, _headers: any) => {
                 this.logger.info('Created Group Channel.');
                 return (callback != null) ? callback(data) : false;
             },
@@ -719,34 +726,34 @@ class Client extends EventEmitter {
     }
 
     // type "P"
-    createPrivateChannel(privateChannel, callback) {
+    createPrivateChannel(privateChannel: any, callback: any) {
         return this._apiCall(
             'POST',
             '/channels',
             privateChannel,
-            (data, headers) => {
+            (data: any, _headers: any) => {
                 this.logger.info('Created Private Channel.');
                 return (callback != null) ? callback(data) : false;
             },
         );
     }
 
-    addUserToChannel(privateChannel, callback) {
+    addUserToChannel(privateChannel: any, callback: any) {
         const uri = `/channels/${privateChannel.channel_id}/members`;
         return this._apiCall(
             'POST',
             uri,
             privateChannel,
-            (data, headers) => {
+            (data: any, _headers: any) => {
                 this.logger.info(`Added User to Channel${privateChannel.channel_id}`);
                 return (callback != null) ? callback(data) : false;
             },
         );
     }
 
-    findChannelByName(name) {
+    findChannelByName(name: string) {
         const foundChannel = Object.keys(this.channels)
-            .find((channel) => {
+            .find((channel: any) => {
                 const channelName = this.channels[channel].name;
                 const channelDisplayName = this.channels[channel].display_name;
                 return channelName === name || channelDisplayName === name;
@@ -754,18 +761,15 @@ class Client extends EventEmitter {
         return foundChannel || null;
     }
 
-    static _chunkMessage(msg) {
+    static _chunkMessage(msg: any) {
         if (!msg) {
             return [''];
         }
-        const message_limit = messageMaxRunes;
-        let chunks = [];
-        chunks = msg.match(new RegExp(`(.|[\r\n]){1,${message_limit}}`, 'g'));
-        return chunks;
+        return msg.match(new RegExp(`(.|[\r\n]){1,${messageMaxRunes}}`, 'g'));
     }
 
-    postMessage(msg, channelID) {
-        const postData = {
+    postMessage(msg: any, channelID: string) {
+        const postData: any = {
             message: msg,
             file_ids: [],
             create_at: 0,
@@ -789,7 +793,7 @@ class Client extends EventEmitter {
         const chunks = this._chunkMessage(postData.message);
         postData.message = chunks.shift();
 
-        return this._apiCall('POST', '/posts', postData, (_data, _headers) => {
+        return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
             this.logger.debug('Posted message.');
 
             if ((chunks != null ? chunks.length : undefined) > 0) {
@@ -803,7 +807,7 @@ class Client extends EventEmitter {
         });
     }
 
-    setChannelHeader(channelID, header) {
+    setChannelHeader(channelID: string, header: any) {
         const postData = {
             channel_id: channelID,
             channel_header: header,
@@ -813,7 +817,7 @@ class Client extends EventEmitter {
             'POST',
             `${this.teamRoute()}/channels/update_header`,
             postData,
-            (_data, _headers) => {
+            (_data: any, _headers: any) => {
                 this.logger.debug('Channel header updated.');
                 return true;
             },
@@ -822,7 +826,7 @@ class Client extends EventEmitter {
 
     // Private functions
     //
-    _send(message) {
+    _send(message: any) {
         const messageExt = { ...message };
         if (!this.connected) {
             return false;
@@ -836,23 +840,24 @@ class Client extends EventEmitter {
     }
 
 
-    _apiCall(method, path, params, callback, callback_params = {}) {
-        let isForm = false;
-        let safeMethod = method;
-        if (typeof method !== 'string') {
-            isForm = true;
-            safeMethod = method.method;
-        }
+    _apiCall(
+        method: string,
+        path: string,
+        params: any,
+        callback: any,
+        callback_params: any = {},
+        isForm: boolean = false,
+    ) {
         let post_data = '';
         if (params != null) { post_data = JSON.stringify(params); }
-        const options = {
+        const options: any = {
             uri: this._getApiUrl(path),
-            method: safeMethod,
+            method,
             json: params,
             rejectUnauthorized: this.tlsverify,
             headers: {
                 'Content-Type': 'application/json',
-                'Content-Length': new TextEncoder.TextEncoder('utf-8').encode(post_data).length,
+                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(post_data).length,
                 'X-Requested-With': 'XMLHttpRequest',
             },
         };
@@ -867,10 +872,10 @@ class Client extends EventEmitter {
             options.formData = params;
         }
 
-        this.logger.debug(`${safeMethod} ${path}`);
+        this.logger.debug(`${method} ${path}`);
         this.logger.info(`api url:${options.uri}`);
 
-        return request(options, (error, res, value) => {
+        return request(options, (error: any, res: any, value: any) => {
             if (error) {
                 if (callback) {
                     return callback({ id: null, error: error.errno }, {}, callback_params);
@@ -892,7 +897,7 @@ class Client extends EventEmitter {
         });
     }
 
-    _getApiUrl(path) {
+    _getApiUrl(path: string) {
         const protocol = this.useTLS ? 'https://' : 'http://';
         const port = (this.options.httpPort != null) ? `:${this.options.httpPort}` : '';
         return protocol + this.host + port + apiPrefix + path;
