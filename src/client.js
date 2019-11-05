@@ -30,7 +30,7 @@ class Client extends EventEmitter {
 
         this.authenticated = false;
         this.connected = false;
-        this.personalAccessToken = false;
+        this.hasAccessToken = false;
         this.token = null;
 
         this.self = null;
@@ -86,7 +86,7 @@ class Client extends EventEmitter {
     }
 
     login(email, password, mfaToken) {
-        this.personalAccessToken = false;
+        this.hasAccessToken = false;
         this.email = email;
         this.password = password;
         this.mfaToken = mfaToken;
@@ -105,7 +105,7 @@ class Client extends EventEmitter {
 
     tokenLogin(token) {
         this.token = token;
-        this.personalAccessToken = true;
+        this.hasAccessToken = true;
         this.logger.info('Logging in with personal access token...');
         const uri = `${usersRoute}/me`;
         return this._apiCall('GET', uri, null, this._onLogin);
@@ -122,7 +122,7 @@ class Client extends EventEmitter {
             }
             this.authenticated = true;
             // Continue happy flow here
-            if (!this.personalAccessToken) {
+            if (!this.hasAccessToken) {
                 this.token = headers.token;
             }
             this.socketUrl = this._getSocketUrl();
@@ -358,7 +358,7 @@ class Client extends EventEmitter {
             return setTimeout(
                 () => {
                     this.logger.info('Attempting reconnect');
-                    if (this.personalAccessToken) {
+                    if (this.hasAccessToken) {
                         return this.tokenLogin(this.token);
                     }
                     return this.login(this.email, this.password, this.mfaToken);
