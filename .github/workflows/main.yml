@@ -17,7 +17,7 @@ jobs:
         node-version: ${{ matrix.node }}
     - name: Install dependencies
       run: yarn
-    - name: eslint check
+    - name: run tests
       run: yarn test
     - name: Build Mattermost environment and create test users
       run: |
@@ -36,5 +36,5 @@ jobs:
     - uses: actions/checkout@v1
     - name: install dependencies
       run: yarn
-    - name: eslint check
+    - name: run tests
       run: yarn test
