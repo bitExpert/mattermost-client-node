@@ -215,7 +215,7 @@ class Client extends EventEmitter {
                     return isTeamFound;
                 });
             this.loadUsers();
-            this.loadChannels();
+            return this.loadChannels();
         }
         this.logger.error('Failed to load Teams...');
         return this.reconnect();
@@ -242,7 +242,6 @@ class Client extends EventEmitter {
     }
 
     getTeams() {
-        this.logger.info('GET TEAMS!!!!!!!!!1');
         const uri = `${usersRoute}/me/teams`;
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onTeams);
