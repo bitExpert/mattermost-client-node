@@ -1,8 +1,5 @@
 /* eslint-disable */
 const Client = require('../../src/client.ts');
-const User = require('../../src/user.js');
-const Team = require('../../src/team.js');
-const Channel = require('../../src/channel.js');
 let client = null;
 let currentUser = null;
 let differentUser = null;
@@ -38,10 +35,10 @@ afterEach(() => {
 module.exports = () =>
 describe('users', () => {
     test('get current user', (done) => {
-        client.on('meLoaded', function(userData) {
-            //expect(userData).toBeInstanceOf(User); // ToDo check why this fails / add TS
+        client.on('meLoaded', function(user) {
+            expect(user).toMatchObject(ADMIN.mock);
             // user from login should be the same user as getMe()
-            expect(userData).toEqual(currentUser);
+            expect(user).toEqual(currentUser);
             done();
         });
         client.getMe();
@@ -62,7 +59,7 @@ describe('users', () => {
         // ToDo test multiple pages: loadUsers(page)
         client.on('profilesLoaded', function(usersData) {
             usersData.forEach(function(user) {
-                //expect(user).toBeInstanceOf(User); // ToDo check why this fails / add TS
+                expect(user).toMatchObject(ALLUSERS.mock);
                 if (user.username === USER.username) {
                     differentUser = user;
                 }
@@ -75,7 +72,7 @@ describe('users', () => {
     test('get single user by ID from API', (done) => {
         expect(differentUser).not.toBeNull();
         client.on('profilesLoaded', function(user) {
-            //expect(user).toBeInstanceOf(User); // ToDo check why this fails / add TS
+            expect(user[0]).toMatchObject(ALLUSERS.mock);
             done();
         });
         // `differentUser` gets set in 'get all available users'
@@ -87,7 +84,7 @@ describe('users', () => {
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
         expect(differentUser).not.toBeNull();
         const user = client.getUserByID(differentUser.id);
-        //expect(user).toBeInstanceOf(User); // ToDo check why this fails / add TS
+        expect(user).toMatchObject(ALLUSERS.mock);
         done();
     });
 
@@ -95,8 +92,9 @@ describe('users', () => {
         // `differentUser` gets set in 'get all available users'
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
         expect(differentUser).not.toBeNull();
+        console.log(differentUser.email);
         const user = client.getUserByEmail(differentUser.email);
-        //expect(user).toBeInstanceOf(User); // ToDo check why this fails / add TS
+        expect(user).toMatchObject(ALLUSERS.mock);
         done();
     });
 
@@ -135,12 +133,4 @@ describe('users', () => {
         // expect(client.getChannelByID(publicChannel.id)).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
         done();
     });
-
-
-    // test('get users status', (done) => {
-    //     client.on('error', function(data){
-    //         expect(error).toEqual({"error": "ENOTFOUND", "id": null});
-    //         done();
-    //     });
-    // });
 });

@@ -2,11 +2,17 @@
   "compilerOptions": {
     "module": "commonjs",
     "noImplicitAny": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
     "removeComments": true,
     "preserveConstEnums": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "plugins": [
+      { "transform": "ts-auto-mock/transformer" }
+    ]
   },
   "files": [
-    "src/client.ts"
+    "src/client.ts",
+    "src/user.ts"
   ]
 }

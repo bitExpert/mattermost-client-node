@@ -5,7 +5,6 @@ const Log = require('log');
 const querystring = require('querystring');
 const { EventEmitter } = require('events');
 const HttpsProxyAgent = require('https-proxy-agent');
-const User = require('./user');
 const Message = require('./message');
 
 const apiPrefix = '/api/v4';
@@ -117,7 +116,7 @@ class Client extends EventEmitter {
             {}, this._onRevoke);
     }
 
-    createUser(user: any) {
+    createUser(user: User) {
         const postData = user;
         const uri = `${usersRoute}?iid=`;
         return this._apiCall('POST', uri, postData, this._onCreateUser);
@@ -147,7 +146,7 @@ class Client extends EventEmitter {
             }
             this.socketUrl = this._getSocketUrl();
             this.logger.info(`Websocket URL: ${this.socketUrl}`);
-            this.self = new User(data);
+            this.self = data;
             this.emit('loggedIn', this.self);
             this.getMe();
             this.getPreferences();
@@ -178,9 +177,9 @@ class Client extends EventEmitter {
         return this.emit('error', data);
     }
 
-    _onLoadUsers(data: any, _headers: any, params: any) {
+    _onLoadUsers(data: User[] | any, _headers: any, params: any) {
         if (data && !data.error) {
-            data.forEach((user: any) => {
+            data.forEach((user: User) => {
                 this.users[user.id] = user;
             });
             this.logger.info(`Found ${Object.keys(data).length} profiles.`);
@@ -608,7 +607,7 @@ class Client extends EventEmitter {
     }
 
     getUserByEmail(email: string) {
-        return Object.entries(this.users)
+        return Object.values(this.users)
             .find((user: any) => user.email === email);
     }
 

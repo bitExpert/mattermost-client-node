@@ -1,6 +1,6 @@
 /* eslint-disable */
 const Client = require('../../src/client.ts');
-const User = require('../../src/user.js');
+const User = require('../../src/user.ts');
 
 /*
 beforeEach(() => {
