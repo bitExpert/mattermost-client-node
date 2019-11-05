@@ -92,7 +92,6 @@ describe('users', () => {
         // `differentUser` gets set in 'get all available users'
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
         expect(differentUser).not.toBeNull();
-        console.log(differentUser.email);
         const user = client.getUserByEmail(differentUser.email);
         expect(user).toMatchObject(ALLUSERS.mock);
         done();
