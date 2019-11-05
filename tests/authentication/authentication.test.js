@@ -1,6 +1,6 @@
 /* eslint-disable */
-const Client = require('../src/client.js');
-const User = require('../src/user.js');
+const Client = require('../../src/client.js');
+const User = require('../../src/user.js');
 const httpPort = 8065;
 const wsPort = 443;
 const host = 'localhost';
@@ -23,6 +23,7 @@ afterAll(() => {
 });
 */
 
+module.exports = () =>
 describe('login', () => {
     test('client without any settings emits error', (done) => {
         const client = new Client(null, null, {
