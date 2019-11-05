@@ -1,11 +1,10 @@
-const request = require('request');
-const WS = require('ws');
-const TextEncoding = require('text-encoding');
-const Log = require('log');
-const querystring = require('querystring');
-const { EventEmitter } = require('events');
-const HttpsProxyAgent = require('https-proxy-agent');
-const Message = require('./message');
+import request from 'request';
+import WS from 'ws';
+import TextEncoding from 'text-encoding';
+import Log from 'log';
+import querystring from 'querystring';
+import { EventEmitter } from 'events';
+import HttpsProxyAgent from 'https-proxy-agent';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
@@ -13,6 +12,70 @@ const messageMaxRunes = 4000;
 const defaultPingInterval = 60000;
 
 class Client extends EventEmitter {
+    host: string;
+
+    group: string;
+
+    options: any;
+
+    useTLS: boolean;
+
+    tlsverify: boolean;
+
+    authenticated: boolean;
+
+    connected: boolean;
+
+    hasAccessToken: boolean;
+
+    token: any;
+
+    self: any;
+
+    channels: any;
+
+    users: any;
+
+    teams: any;
+
+    teamID: any;
+
+    ws: any;
+
+    _messageID: number;
+
+    _pending: any;
+
+    _pingInterval: any;
+
+    autoReconnect: any;
+
+    httpProxy: any;
+
+    _connecting: boolean;
+
+    _reconnecting: boolean;
+
+    _connAttempts: number;
+
+    logger: any;
+
+    email: string;
+
+    password: string;
+
+    mfaToken: string;
+
+    socketUrl: string;
+
+    preferences: any;
+
+    me: any;
+
+    _lastPong: number;
+
+    _pongTimeout: NodeJS.Timeout;
+
     constructor(host: string, group: string, options: any) {
         super();
         this.host = host;
@@ -77,6 +140,8 @@ class Client extends EventEmitter {
 
         // Binding because async calls galore
         this._onLogin = this._onLogin.bind(this);
+        this._onCreateTeam = this._onCreateTeam.bind(this);
+        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
         this._onCreateUser = this._onCreateUser.bind(this);
         this._onLoadUsers = this._onLoadUsers.bind(this);
@@ -102,6 +167,7 @@ class Client extends EventEmitter {
             'POST',
             `${usersRoute}/login`,
             {
+                // eslint-disable-next-line @typescript-eslint/camelcase
                 login_id: this.email,
                 password: this.password,
                 token: this.mfaToken,
@@ -112,14 +178,22 @@ class Client extends EventEmitter {
 
     // revoke a user session
     revoke(userID: string) {
-        return this._apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`,
-            {}, this._onRevoke);
+        return this._apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`, {}, this._onRevoke);
     }
 
     createUser(user: User) {
-        const postData = user;
         const uri = `${usersRoute}?iid=`;
-        return this._apiCall('POST', uri, postData, this._onCreateUser);
+        return this._apiCall('POST', uri, user, this._onCreateUser);
+    }
+
+    createTeam(team: any) {
+        const uri = '/teams';
+        return this._apiCall('POST', uri, Object.assign(team, { type: 'I' }), this._onCreateTeam);
+    }
+
+    checkIfTeamExists(teamId: string) {
+        const uri = `/teams/name/${teamId}/exists`;
+        return this._apiCall('GET', uri, null, this._onCheckIfTeamExists);
     }
 
     tokenLogin(token: string) {
@@ -166,6 +240,24 @@ class Client extends EventEmitter {
 
     _onRevoke(data: any) {
         return this.emit('sessionRevoked', data);
+    }
+
+    _onCreateTeam(data: any) {
+        if (!data.error) {
+            this.logger.info('Creating team...');
+            return this.emit('teamCreated', data);
+        }
+        this.logger.error('Team creation failed', JSON.stringify(data));
+        return this.emit('error', data);
+    }
+
+    _onCheckIfTeamExists(data: any) {
+        if (!data.error) {
+            this.logger.info('Checking if team exists...');
+            return this.emit('teamChecked', data);
+        }
+        this.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
+        return this.emit('error', data);
     }
 
     _onCreateUser(data: any) {
@@ -329,7 +421,7 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onTeams);
     }
 
-    loadUsers(page: number = 0, byTeam: boolean = true) {
+    loadUsers(page = 0, byTeam = true) {
         let uri = `/users?page=${page}&per_page=200`;
         // get onlmm_get_channelsy users of team (surveybot NOT included)
         if (byTeam) {
@@ -339,8 +431,8 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onLoadUsers, { page });
     }
 
-    loadUser(user_id: string) {
-        const uri = `/users/${user_id}`;
+    loadUser(userId: string) {
+        const uri = `/users/${userId}`;
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onLoadUser, {});
     }
@@ -351,14 +443,14 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onChannels);
     }
 
-    loadUsersFromChannel(channel_id: string) {
-        const uri = `/channels/${channel_id}/members`;
+    loadUsersFromChannel(channelId: string) {
+        const uri = `/channels/${channelId}/members`;
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onUsersOfChannel);
     }
 
-    loadMessagesFromChannel(channel_id: string, options: any = {}) {
-        let uri = `/channels/${channel_id}/posts`;
+    loadMessagesFromChannel(channelId: string, options: any = {}) {
+        let uri = `/channels/${channelId}/posts`;
         const allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
         const params: any = {};
         Object.entries(options).forEach((option: any) => {
@@ -371,6 +463,7 @@ class Client extends EventEmitter {
             params.page = 0;
         }
         if (!params.per_page) {
+            // eslint-disable-next-line @typescript-eslint/camelcase
             params.per_page = 30;
         }
         uri += `?${querystring.stringify(params)}`;
@@ -380,10 +473,12 @@ class Client extends EventEmitter {
 
     // to mark messages as read (e.g. after loading messages of channel)
     // trigger loadChannelLastViewed method
-    loadChannelLastViewed(channel_id: string, prev_channel_id: string | null = null) {
+    loadChannelLastViewed(channelId: string, prevChannelId: string | null = null) {
         const postData = {
-            channel_id,
-            prev_channel_id,
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            channel_id: channelId,
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            prev_channel_id: prevChannelId,
         };
         const uri = '/channels/members/me/view';
         this.logger.info(`Loading ${uri}`);
@@ -525,7 +620,6 @@ class Client extends EventEmitter {
 
     onMessage(message: any) {
         this.emit('raw_message', message);
-        const m = new Message(message);
         switch (message.event) {
         case 'ping':
             // Deprecated
@@ -533,7 +627,7 @@ class Client extends EventEmitter {
             this._lastPong = Date.now();
             return this.emit('ping', message);
         case 'posted':
-            return this.emit('message', m);
+            return this.emit('message', message);
         case 'added_to_team':
         case 'authentication_challenge':
         case 'channel_converted':
@@ -615,9 +709,10 @@ class Client extends EventEmitter {
         let chunks: any;
         const postDataExt = { ...postData };
         if (postDataExt.message != null) {
-            chunks = this._chunkMessage(postData.message);
+            chunks = Client._chunkMessage(postData.message);
             postDataExt.message = chunks.shift();
         }
+        // eslint-disable-next-line @typescript-eslint/camelcase
         postDataExt.channel_id = channelID;
         return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
             this.logger.debug('Posted custom message.');
@@ -630,9 +725,10 @@ class Client extends EventEmitter {
         });
     }
 
-    dialog(trigger_id: string, url: string, dialog: any) {
+    dialog(triggerId: string, url: string, dialog: any) {
         const postData = {
-            trigger_id,
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            trigger_id: triggerId,
             url,
             dialog,
         };
@@ -646,22 +742,23 @@ class Client extends EventEmitter {
         );
     }
 
-    editPost(post_id: string, msg: any) {
+    editPost(postId: string, msg: any) {
         let postData: any = msg;
         if (typeof msg === 'string') {
             postData = {
-                id: post_id,
+                id: postId,
                 message: msg,
             };
         }
-        return this._apiCall('PUT', `/posts/${post_id}`, postData, (_data: any, _headers: any) => {
+        return this._apiCall('PUT', `/posts/${postId}`, postData, (_data: any, _headers: any) => {
             this.logger.debug('Edited post');
         });
     }
 
-    uploadFile(channel_id: string, file: any, callback: any) {
+    uploadFile(channelId: string, file: any, callback: any) {
         const formData = {
-            channel_id,
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            channel_id: channelId,
             files: file,
         };
 
@@ -680,9 +777,13 @@ class Client extends EventEmitter {
 
     react(messageID: string, emoji: string) {
         const postData = {
+            // eslint-disable-next-line @typescript-eslint/camelcase
             user_id: this.self.id,
+            // eslint-disable-next-line @typescript-eslint/camelcase
             post_id: messageID,
+            // eslint-disable-next-line @typescript-eslint/camelcase
             emoji_name: emoji,
+            // eslint-disable-next-line @typescript-eslint/camelcase
             create_at: 0,
         };
         return this._apiCall('POST', '/reactions', postData, (_data: any, _headers: any) => {
@@ -770,9 +871,13 @@ class Client extends EventEmitter {
     postMessage(msg: any, channelID: string) {
         const postData: any = {
             message: msg,
+            // eslint-disable-next-line @typescript-eslint/camelcase
             file_ids: [],
+            // eslint-disable-next-line @typescript-eslint/camelcase
             create_at: 0,
+            // eslint-disable-next-line @typescript-eslint/camelcase
             user_id: this.self.id,
+            // eslint-disable-next-line @typescript-eslint/camelcase
             channel_id: channelID,
         };
 
@@ -783,13 +888,15 @@ class Client extends EventEmitter {
             if (msg.props) {
                 postData.props = msg.props;
             }
+            // eslint-disable-next-line @typescript-eslint/camelcase
             if (msg.file_ids) {
+                // eslint-disable-next-line @typescript-eslint/camelcase
                 postData.file_ids = msg.file_ids;
             }
         }
 
         // break apart long messages
-        const chunks = this._chunkMessage(postData.message);
+        const chunks = Client._chunkMessage(postData.message);
         postData.message = chunks.shift();
 
         return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
@@ -808,7 +915,9 @@ class Client extends EventEmitter {
 
     setChannelHeader(channelID: string, header: any) {
         const postData = {
+            // eslint-disable-next-line @typescript-eslint/camelcase
             channel_id: channelID,
+            // eslint-disable-next-line @typescript-eslint/camelcase
             channel_header: header,
         };
 
@@ -844,11 +953,11 @@ class Client extends EventEmitter {
         path: string,
         params: any,
         callback: any,
-        callback_params: any = {},
-        isForm: boolean = false,
+        callbackParams: any = {},
+        isForm = false,
     ) {
-        let post_data = '';
-        if (params != null) { post_data = JSON.stringify(params); }
+        let postData = '';
+        if (params != null) { postData = JSON.stringify(params); }
         const options: any = {
             uri: this._getApiUrl(path),
             method,
@@ -856,7 +965,7 @@ class Client extends EventEmitter {
             rejectUnauthorized: this.tlsverify,
             headers: {
                 'Content-Type': 'application/json',
-                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(post_data).length,
+                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
                 'X-Requested-With': 'XMLHttpRequest',
             },
         };
@@ -877,7 +986,7 @@ class Client extends EventEmitter {
         return request(options, (error: any, res: any, value: any) => {
             if (error) {
                 if (callback) {
-                    return callback({ id: null, error: error.errno }, {}, callback_params);
+                    return callback({ id: null, error: error.errno }, {}, callbackParams);
                 }
             } else if (callback) {
                 if ((res.statusCode === 200) || (res.statusCode === 201)) {
@@ -885,12 +994,12 @@ class Client extends EventEmitter {
                         ? JSON.parse(value)
                         : value;
 
-                    return callback(safeValue, res.headers, callback_params);
+                    return callback(safeValue, res.headers, callbackParams);
                 }
                 return callback({
                     id: null,
                     error: `API response: ${res.statusCode} ${JSON.stringify(value)}`,
-                }, res.headers, callback_params);
+                }, res.headers, callbackParams);
             }
             return false;
         });
