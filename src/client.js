@@ -13,8 +13,6 @@ const usersRoute = '/users';
 const messageMaxRunes = 4000;
 const defaultPingInterval = 60000;
 
-const tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
-
 class Client extends EventEmitter {
     constructor(host, group, options) {
         super();
@@ -25,6 +23,10 @@ class Client extends EventEmitter {
         this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {
             this.useTLS = options.useTLS;
+        }
+        this.tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
+        if (typeof options.tlsverify !== 'undefined') {
+            this.tlsverify = options.tlsverify;
         }
 
         this.authenticated = false;
@@ -410,7 +412,7 @@ class Client extends EventEmitter {
 
         this._connecting = true;
         this.logger.info('Connecting...');
-        const options = { rejectUnauthorized: tlsverify };
+        const options = { rejectUnauthorized: this.tlsverify };
 
         if (this.httpProxy) { options.agent = new HttpsProxyAgent(this.httpProxy); }
 
@@ -635,9 +637,14 @@ class Client extends EventEmitter {
             url,
             dialog,
         };
-        return this._apiCall('POST', '/actions/dialogs/open', postData, (_data, _headers) => {
-            this.logger.debug('Created dialog');
-        });
+        return this._apiCall(
+            'POST',
+            '/actions/dialogs/open',
+            postData,
+            (_data, _headers) => {
+                this.logger.debug('Created dialog');
+            },
+        );
     }
 
     editPost(post_id, msg) {
@@ -787,7 +794,8 @@ class Client extends EventEmitter {
 
             if ((chunks != null ? chunks.length : undefined) > 0) {
                 const message = chunks.join();
-                this.logger.debug(`Recursively posting remainder of message: (${(chunks != null ? chunks.length : undefined)})`);
+                const chunksLenght = chunks ? chunks.length : undefined;
+                this.logger.debug(`Recursively posting remainder of message: (${chunksLenght})`);
                 return this.postMessage(message, channelID);
             }
 
@@ -801,10 +809,15 @@ class Client extends EventEmitter {
             channel_header: header,
         };
 
-        return this._apiCall('POST', `${this.teamRoute()}/channels/update_header`, postData, (_data, _headers) => {
-            this.logger.debug('Channel header updated.');
-            return true;
-        });
+        return this._apiCall(
+            'POST',
+            `${this.teamRoute()}/channels/update_header`,
+            postData,
+            (_data, _headers) => {
+                this.logger.debug('Channel header updated.');
+                return true;
+            },
+        );
     }
 
     // Private functions
@@ -833,10 +846,10 @@ class Client extends EventEmitter {
         let post_data = '';
         if (params != null) { post_data = JSON.stringify(params); }
         const options = {
-            uri: (this.useTLS ? 'https://' : 'http://') + this.host + ((this.options.httpPort != null) ? `:${this.options.httpPort}` : '') + apiPrefix + path,
+            uri: this._getApiUrl(path),
             method: safeMethod,
             json: params,
-            rejectUnauthorized: tlsverify,
+            rejectUnauthorized: this.tlsverify,
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': new TextEncoder.TextEncoder('utf-8').encode(post_data).length,
@@ -870,10 +883,19 @@ class Client extends EventEmitter {
 
                     return callback(safeValue, res.headers, callback_params);
                 }
-                return callback({ id: null, error: `API response: ${res.statusCode} ${JSON.stringify(value)}` }, res.headers, callback_params);
+                return callback({
+                    id: null,
+                    error: `API response: ${res.statusCode} ${JSON.stringify(value)}`,
+                }, res.headers, callback_params);
             }
             return false;
         });
+    }
+
+    _getApiUrl(path) {
+        const protocol = this.useTLS ? 'https://' : 'http://';
+        const port = (this.options.httpPort != null) ? `:${this.options.httpPort}` : '';
+        return protocol + this.host + port + apiPrefix + path;
     }
 }
 
