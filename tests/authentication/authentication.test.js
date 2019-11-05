@@ -1,13 +1,6 @@
 /* eslint-disable */
 const Client = require('../../src/client.js');
 const User = require('../../src/user.js');
-const httpPort = 8065;
-const wsPort = 443;
-const host = 'localhost';
-const adminUsername = 'admin';
-const adminMail = 'admin@example.com';
-const adminPassword = 'Admin12345!';
-const adminGroup = 'privateteam';
 
 /*
 beforeEach(() => {
@@ -39,51 +32,51 @@ describe('authentication', () => {
         });
     
         test('client with correct settings can log in', (done) => {
-            const client = new Client(host, adminGroup, {
+            const client = new Client(CONNECTION.host, ADMIN.group, {
                 autoReconnect: false,
                 useTLS: false,
-                httpPort: httpPort,
-                wssPort: wsPort,
+                httpPort: CONNECTION.httpPort,
+                wssPort: CONNECTION.wsPort,
                 logger: 'noop'
             });
             client.on('loggedIn', function(user){
                 // ToDo check instance against mattermost instance interface
                 expect(user).toBeInstanceOf(User);
                 expect(typeof user.email).toEqual('string');
-                expect(user.email).toEqual(adminMail);
+                expect(user.email).toEqual(ADMIN.email);
                 expect(typeof user.username).toEqual('string');
-                expect(user.username).toEqual(adminUsername);
+                expect(user.username).toEqual(ADMIN.username);
                 done();
             });
-            client.login(adminMail, adminPassword, null);
+            client.login(ADMIN.email, ADMIN.password, null);
         });
     
         test('client with correct settings can log in with autoReconnect: true', (done) => {
-            const client = new Client(host, adminGroup, {
+            const client = new Client(CONNECTION.host, ADMIN.group, {
                 autoReconnect: true,
                 useTLS: false,
-                httpPort: httpPort,
-                wssPort: wsPort,
+                httpPort: CONNECTION.httpPort,
+                wssPort: CONNECTION.wsPort,
                 logger: 'noop'
             });
             client.on('loggedIn', function(user){
                 // ToDo check instance against mattermost instance interface
                 expect(user).toBeInstanceOf(User);
                 expect(typeof user.email).toEqual('string');
-                expect(user.email).toEqual(adminMail);
+                expect(user.email).toEqual(ADMIN.email);
                 expect(typeof user.username).toEqual('string');
-                expect(user.username).toEqual(adminUsername);
+                expect(user.username).toEqual(ADMIN.username);
                 done();
             });
-            client.login(adminMail, adminPassword, null);
+            client.login(ADMIN.email, ADMIN.password, null);
         });
     
         test('client throws EPROTO error when TLS can not be used', (done) => {
-            const client = new Client(host, adminGroup, {
+            const client = new Client(CONNECTION.host, ADMIN.group, {
                 autoReconnect: false,
                 useTLS: true,
-                httpPort: httpPort,
-                wssPort: wsPort,
+                httpPort: CONNECTION.httpPort,
+                wssPort: CONNECTION.wsPort,
                 logger: 'noop'
             });
             client.on('error', function(err){
@@ -91,7 +84,7 @@ describe('authentication', () => {
                 expect(err).toEqual({ id: null, error: 'EPROTO' });
                 done();
             });
-            client.login(adminMail, adminPassword, null);
+            client.login(ADMIN.email, ADMIN.password, null);
         });
     });
 });
