@@ -2,17 +2,16 @@ const request = require('request');
 const WebSocket = require('ws');
 const TextEncoder = require('text-encoding');
 const Log = require('log');
+const querystring = require('querystring');
 const { EventEmitter } = require('events');
 const HttpsProxyAgent = require('https-proxy-agent');
-
-const defaultPingInterval = 60000;
-
 const User = require('./user');
 const Message = require('./message');
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
 const messageMaxRunes = 4000;
+const defaultPingInterval = 60000;
 
 const tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
 
@@ -77,12 +76,19 @@ class Client extends EventEmitter {
 
         // Binding because async calls galore
         this._onLogin = this._onLogin.bind(this);
+        this._onRevoke = this._onRevoke.bind(this);
+        this._onCreateUser = this._onCreateUser.bind(this);
         this._onLoadUsers = this._onLoadUsers.bind(this);
         this._onLoadUser = this._onLoadUser.bind(this);
         this._onChannels = this._onChannels.bind(this);
+        this._onUsersOfChannel = this._onUsersOfChannel.bind(this);
+        this._onMessages = this._onMessages.bind(this);
         this._onPreferences = this._onPreferences.bind(this);
         this._onMe = this._onMe.bind(this);
         this._onTeams = this._onTeams.bind(this);
+        this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
+        this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
+        this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
     }
 
     login(email, password, mfaToken) {
@@ -101,6 +107,18 @@ class Client extends EventEmitter {
             },
             this._onLogin,
         );
+    }
+
+    // revoke a user session
+    revoke(userID) {
+        return this._apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`,
+            {}, this._onRevoke);
+    }
+
+    createUser(user) {
+        const postData = user;
+        const uri = `${usersRoute}?iid=`;
+        return this._apiCall('POST', uri, postData, this._onCreateUser);
     }
 
     tokenLogin(token) {
@@ -145,6 +163,19 @@ class Client extends EventEmitter {
         return `${protocol + this.host + wssPort + apiPrefix}/websocket`;
     }
 
+    _onRevoke(data) {
+        return this.emit('sessionRevoked', data);
+    }
+
+    _onCreateUser(data) {
+        if (data.id) {
+            this.logger.info('Creating user...');
+            return this.emit('created', data);
+        }
+        this.logger.error('User creation failed', JSON.stringify(data));
+        return this.emit('error', data);
+    }
+
     _onLoadUsers(data, _headers, params) {
         if (data && !data.error) {
             data.forEach((user) => {
@@ -179,6 +210,54 @@ class Client extends EventEmitter {
         }
         this.logger.error(`Failed to get subscribed channels list from server: ${data.error}`);
         return this.emit('error', { msg: 'failed to get channel list' });
+    }
+
+    _onUsersOfChannel(data, headers, params) {
+        if (data && !data.error) {
+            Object.entries(data).forEach((channel) => {
+                this.channels[channel.id] = channel;
+            });
+            this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
+            return this.emit('usersOfChannelLoaded', data);
+        }
+        this.logger.error(`Failed to get subscribed channels list from server: ${data.error}`);
+        return this.emit('error', { msg: 'failed to get channel list' });
+    }
+
+    _onMessages(data, headers, params) {
+        if (data && !data.error) {
+            this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
+            return this.emit('messagesLoaded', data);
+        }
+        this.logger.error(`Failed to get messages from server: ${data.error}`);
+        return this.emit('error', { msg: 'failed to get messages' });
+    }
+
+    _onUnreadsForChannels(data, headers, params) {
+        if (data && !data.error) {
+            this.logger.info(`Found ${Object.keys(data).length} information about unreads.`);
+            return this.emit('channelsUnreadsLoaded', data);
+        }
+        this.logger.error(`Failed to get unreads of channels from server: ${data.error}`);
+        return this.emit('error', { msg: 'failed to get unreads for channels' });
+    }
+
+    _onChannelLastViewed(data, headers, params) {
+        if (data && !data.error) {
+            this.logger.info(`Found ${Object.keys(data).length} for last reads.`);
+            return this.emit('channelLastViewedLoaded', data);
+        }
+        this.logger.error(`Failed to get last reads of channel(s) from server: ${data.error}`);
+        return this.emit('error', { msg: 'failed to get last reads for channel(s)' });
+    }
+
+    _onMembersFromChannels(data, headers, params) {
+        if (data && !data.error) {
+            this.logger.info(`Found ${Object.keys(data).length} channels.`);
+            return this.emit('membersFromChannelsLoaded', data);
+        }
+        this.logger.error(`Failed to get messages from server: ${data.error}`);
+        return this.emit('error', { msg: 'failed to get all members from channels' });
     }
 
     _onPreferences(data, _headers, _params) {
@@ -249,8 +328,12 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onTeams);
     }
 
-    loadUsers(page = 0) {
-        const uri = `/users?page=${page}&per_page=200&in_team=${this.teamID}`;
+    loadUsers(page = 0, byTeam = true) {
+        let uri = `/users?page=${page}&per_page=200`;
+        // get onlmm_get_channelsy users of team (surveybot NOT included)
+        if (byTeam) {
+            uri += `&in_team=${this.teamID}`;
+        }
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onLoadUsers, { page });
     }
@@ -265,6 +348,61 @@ class Client extends EventEmitter {
         const uri = `/users/me/teams/${this.teamID}/channels`;
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onChannels);
+    }
+
+    loadUsersFromChannel(channel_id) {
+        const uri = `/channels/${channel_id}/members`;
+        this.logger.info(`Loading ${uri}`);
+        return this._apiCall('GET', uri, null, this._onUsersOfChannel);
+    }
+
+    loadMessagesFromChannel(channel_id, options = {}) {
+        let uri = `/channels/${channel_id}/posts`;
+        const allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
+        const params = {};
+        Object.entries(options).forEach((option) => {
+            if (allowedOptions.indexOf(option) >= 0) {
+                params[option] = options[option];
+            }
+        });
+        // set standard params for page / per_page if not set
+        if (!params.page) {
+            params.page = 0;
+        }
+        if (!params.per_page) {
+            params.per_page = 30;
+        }
+        uri += `?${querystring.stringify(params)}`;
+        this.logger.info(`Loading ${uri}`);
+        return this._apiCall('GET', uri, params, this._onMessages);
+    }
+
+    // to mark messages as read (e.g. after loading messages of channel)
+    // trigger loadChannelLastViewed method
+    loadChannelLastViewed(channel_id, prev_channel_id = null) {
+        const postData = {
+            channel_id,
+            prev_channel_id,
+        };
+        const uri = '/channels/members/me/view';
+        this.logger.info(`Loading ${uri}`);
+        return this._apiCall('POST', uri, postData, this._onChannelLastViewed);
+    }
+
+    loadUnreadsForChannels() {
+        const uri = '/users/me/teams/unread';
+        this.logger.info(`Loading ${uri}`);
+        return this._apiCall('GET', uri, null, this._onUnreadsForChannels);
+    }
+
+
+    // method is needed e.g. to get detailed unreads (channels and direct messages)
+    // iterate over this.channels and substract msg_count (result from this call)
+    // from this.channels.total_msg_count
+    loadMembersFromChannels() {
+        const uri = `/users/me/teams/${this.teamID}/channels/members`;
+        this.logger.info(`Loading ${uri}`);
+        return this._apiCall('GET', uri, null, this._onMembersFromChannels);
     }
 
     connect() {
@@ -319,8 +457,7 @@ class Client extends EventEmitter {
                 }
                 this.logger.info('ping');
                 this._send({ action: 'ping' });
-            },
-            this._pingInterval);
+            }, this._pingInterval);
             return this._pongTimeout;
         });
 
@@ -435,15 +572,6 @@ class Client extends EventEmitter {
         }
     }
 
-    getUserByID(id) {
-        return this.users[id];
-    }
-
-    getUserByEmail(email) {
-        return Object.entries(this.users)
-            .find((user) => user.email === email);
-    }
-
     getUserDirectMessageChannel(userID, callback) {
         // check if channel already exists
         let channel = `${this.self.id}__${userID}`;
@@ -467,6 +595,19 @@ class Client extends EventEmitter {
 
     getChannelByID(id) {
         return this.channels[id];
+    }
+
+    getAllUsers() {
+        return this.users;
+    }
+
+    getUserByID(id) {
+        return this.users[id];
+    }
+
+    getUserByEmail(email) {
+        return Object.entries(this.users)
+            .find((user) => user.email === email);
     }
 
     customMessage(postData, channelID) {
@@ -543,12 +684,57 @@ class Client extends EventEmitter {
         });
     }
 
+    // type "D"
     createDirectChannel(userID, callback) {
         const postData = [userID, this.self.id];
-        return this._apiCall('POST', '/channels/direct', postData, (data, _headers) => {
-            this.logger.info('Created Direct Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
+        return this._apiCall(
+            'POST',
+            '/channels/direct',
+            postData,
+            (data, _headers) => {
+                this.logger.info('Created Direct Channel.');
+                return (callback != null) ? callback(data) : false;
+            },
+        );
+    }
+
+    // type "G"
+    createGroupChannel(userIDs, callback) {
+        return this._apiCall(
+            'POST',
+            '/channels/group',
+            userIDs,
+            (data, headers) => {
+                this.logger.info('Created Group Channel.');
+                return (callback != null) ? callback(data) : false;
+            },
+        );
+    }
+
+    // type "P"
+    createPrivateChannel(privateChannel, callback) {
+        return this._apiCall(
+            'POST',
+            '/channels',
+            privateChannel,
+            (data, headers) => {
+                this.logger.info('Created Private Channel.');
+                return (callback != null) ? callback(data) : false;
+            },
+        );
+    }
+
+    addUserToChannel(privateChannel, callback) {
+        const uri = `/channels/${privateChannel.channel_id}/members`;
+        return this._apiCall(
+            'POST',
+            uri,
+            privateChannel,
+            (data, headers) => {
+                this.logger.info(`Added User to Channel${privateChannel.channel_id}`);
+                return (callback != null) ? callback(data) : false;
+            },
+        );
     }
 
     findChannelByName(name) {
