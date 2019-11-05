@@ -30,7 +30,7 @@ describe('authentication', () => {
             });
             client.login();
         });
-    
+
         test('client with correct settings can log in', (done) => {
             const client = new Client(CONNECTION.host, ADMIN.group, {
                 autoReconnect: false,
@@ -50,7 +50,7 @@ describe('authentication', () => {
             });
             client.login(ADMIN.email, ADMIN.password, null);
         });
-    
+
         test('client with correct settings can log in with autoReconnect: true', (done) => {
             const client = new Client(CONNECTION.host, ADMIN.group, {
                 autoReconnect: true,
@@ -70,7 +70,7 @@ describe('authentication', () => {
             });
             client.login(ADMIN.email, ADMIN.password, null);
         });
-    
+
         test('client throws EPROTO error when TLS can not be used', (done) => {
             const client = new Client(CONNECTION.host, ADMIN.group, {
                 autoReconnect: false,

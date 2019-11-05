@@ -1,29 +1,27 @@
 /* eslint-disable */
 const Client = require('../../src/client.js');
 const User = require('../../src/user.js');
-const httpPort = 8065;
-const wsPort = 443;
-const host = 'localhost';
-const adminUsername = 'admin';
-const adminMail = 'admin@example.com';
-const adminPassword = 'Admin12345!';
-const adminGroup = 'privateteam';
+const Team = require('../../src/team.js');
+const Channel = require('../../src/channel.js');
 let client = null;
-let user = null;
+let currentUser = null;
+let differentUser = null;
+let privateChannel = null;
+let publicChannel = null;
 
 beforeAll((done) => {
-    client = new Client(host, adminGroup, {
+    client = new Client(CONNECTION.host, ADMIN.group, {
         autoReconnect: false,
         useTLS: false,
-        httpPort: httpPort,
-        wssPort: wsPort,
-        logger: 'noop'
+        httpPort: CONNECTION.httpPort,
+        wssPort: CONNECTION.wsPort,
+        logger: 'noop',
     });
-    client.on('loggedIn', function(user){
-        user = user;
+    client.on('loggedIn', function(userData){
+        currentUser = userData;
         done();
     });
-    client.login(adminMail, adminPassword, null);
+    client.login(ADMIN.email, ADMIN.password, null);
 });
 
 afterAll(() => {
@@ -37,16 +35,107 @@ beforeEach((done) => {
 afterEach(() => {
 });
 */
-
+module.exports = () =>
 describe('users', () => {
     test('get current user', (done) => {
-        client.on('meLoaded', function(me) {
+        client.on('meLoaded', function(userData) {
+            //expect(userData).toBeInstanceOf(User); // ToDo check why this fails / add TS
             // user from login should be the same user as getMe()
-            expect(me).toEqual(user);
+            expect(userData).toEqual(currentUser);
             done();
         });
         client.getMe();
     });
+
+    test('get teams for user', (done) => {
+        client.on('teamsLoaded', function(teamData) {
+            teamData.forEach(function(team) {
+                //expect(team).toBeInstanceOf(Team); // ToDo check why this fails / add TS
+            });
+            done();
+        });
+        client.getTeams();
+    });
+
+    // sets `differentUser` which is needed for some further tests
+    test('get all available users', (done) => {
+        // ToDo test multiple pages: loadUsers(page)
+        client.on('profilesLoaded', function(usersData) {
+            usersData.forEach(function(user) {
+                //expect(user).toBeInstanceOf(User); // ToDo check why this fails / add TS
+                if (user.username === USER.username) {
+                    differentUser = user;
+                }
+            });
+            done();
+        });
+        client.loadUsers();
+    });
+
+    test('get single user by ID from API', (done) => {
+        expect(differentUser).not.toBeNull();
+        client.on('profilesLoaded', function(user) {
+            //expect(user).toBeInstanceOf(User); // ToDo check why this fails / add TS
+            done();
+        });
+        // `differentUser` gets set in 'get all available users'
+        client.loadUser(differentUser.id);
+    });
+
+    test('get single user by ID from client', (done) => {
+        // `differentUser` gets set in 'get all available users'
+        // only available once `_onLoadUsers` has been called once (via `loadUsers`)
+        expect(differentUser).not.toBeNull();
+        const user = client.getUserByID(differentUser.id);
+        //expect(user).toBeInstanceOf(User); // ToDo check why this fails / add TS
+        done();
+    });
+
+    test('get single user by email from client', (done) => {
+        // `differentUser` gets set in 'get all available users'
+        // only available once `_onLoadUsers` has been called once (via `loadUsers`)
+        expect(differentUser).not.toBeNull();
+        const user = client.getUserByEmail(differentUser.email);
+        //expect(user).toBeInstanceOf(User); // ToDo check why this fails / add TS
+        done();
+    });
+
+    // sets `privateChannel` and `publicChannel which is needed for some further tests
+    test('get all channels from current team for user', (done) => {
+        client.on('channelsLoaded', function(channelData) {
+            channelData.forEach(function(channel) {
+                //expect(channel).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
+                if (channel.name === PRIVATECHANNEL) {
+                    privateChannel = channel;
+                }
+                if (channel.name === PUBLICCHANNEL) {
+                    publicChannel = channel;
+                }
+            });
+            done();
+        });
+        client.loadChannels();
+    });
+
+    test('get all channels from client', (done) => {
+        // only available once `_onChannels` has been called once (via `loadChannels`)
+        const channelData = client.getAllChannels();
+        Object.entries(channelData).forEach(function(channel) {
+            //expect(channel).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
+        });
+        done();
+    });
+
+    test('get single channel from client', (done) => {
+        // only available once `_onChannels` has been called once (via `loadChannels`)
+        // `privateChannel` and `publicChannel` get set in
+        // 'get all channels from current team for user'
+
+        // expect(client.getChannelByID(privateChannel.id)).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
+        // expect(client.getChannelByID(publicChannel.id)).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
+        done();
+    });
+
 
     // test('get users status', (done) => {
     //     client.on('error', function(data){

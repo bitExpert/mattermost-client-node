@@ -171,7 +171,9 @@ class Client extends EventEmitter {
 
     _onChannels(data, _headers, _params) {
         if (data && !data.error) {
-            data.forEach((channel) => { this.channels[channel.id] = channel; });
+            data.forEach((channel) => {
+                this.channels[channel.id] = channel;
+            });
             this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
             return this.emit('channelsLoaded', data);
         }
@@ -438,7 +440,8 @@ class Client extends EventEmitter {
     }
 
     getUserByEmail(email) {
-        return this.users.find((user) => user.email === email);
+        return Object.entries(this.users)
+            .find((user) => user.email === email);
     }
 
     getUserDirectMessageChannel(userID, callback) {
@@ -451,10 +454,10 @@ class Client extends EventEmitter {
             channel = this.findChannelByName(channel);
         }
         if (channel) {
-            // channel obviously doesn't exist, let's create it
             if (callback != null) { callback(channel); }
             return;
         }
+        // channel obviously doesn't exist, let's create it
         this.createDirectChannel(userID, callback);
     }
 
