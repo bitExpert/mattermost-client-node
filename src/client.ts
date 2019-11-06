@@ -143,6 +143,9 @@ class Client extends EventEmitter {
         this._onCreateTeam = this._onCreateTeam.bind(this);
         this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
+        this._onCreateTeam = this._onCreateTeam.bind(this);
+        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
+        this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
         this._onCreateUser = this._onCreateUser.bind(this);
         this._onLoadUsers = this._onLoadUsers.bind(this);
         this._onLoadUser = this._onLoadUser.bind(this);
@@ -197,6 +200,20 @@ class Client extends EventEmitter {
         const uri = `/teams/name/${teamId}/exists`;
         return this._apiCall('GET', uri, null, this._onCheckIfTeamExists);
     }
+
+    // eslint-disable-next-line @typescript-eslint/camelcase
+    addUserToTeam(user_id: string, team_id: string) {
+        const postData = {
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            team_id,
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            user_id,
+        };
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        const uri = `/teams/name/${team_id}/members`;
+        return this._apiCall('POST', uri, postData, this._onAddUserToTeam);
+    }
+
 
     tokenLogin(token: string) {
         this.token = token;
@@ -259,6 +276,15 @@ class Client extends EventEmitter {
             return this.emit('teamChecked', data);
         }
         this.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
+        return this.emit('error', data);
+    }
+
+    _onAddUserToTeam(data: any) {
+        if (!data.error) {
+            this.logger.info('Adding user to team...');
+            return this.emit('userAdded', data);
+        }
+        this.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
         return this.emit('error', data);
     }
 
