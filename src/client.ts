@@ -189,6 +189,7 @@ class Client extends EventEmitter {
     // eslint-disable-next-line @typescript-eslint/camelcase
     createTeam(name: string, display_name: string, type = 'I') {
         const uri = '/teams';
+        // eslint-disable-next-line @typescript-eslint/camelcase
         return this._apiCall('POST', uri, { name, display_name, type }, this._onCreateTeam);
     }
 
