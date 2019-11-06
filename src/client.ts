@@ -186,9 +186,10 @@ class Client extends EventEmitter {
         return this._apiCall('POST', uri, user, this._onCreateUser);
     }
 
-    createTeam(team: any) {
+    // eslint-disable-next-line @typescript-eslint/camelcase
+    createTeam(name: string, display_name: string, type = 'I') {
         const uri = '/teams';
-        return this._apiCall('POST', uri, Object.assign(team, { type: 'I' }), this._onCreateTeam);
+        return this._apiCall('POST', uri, { name, display_name, type }, this._onCreateTeam);
     }
 
     checkIfTeamExists(teamId: string) {
