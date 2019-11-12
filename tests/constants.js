@@ -51,6 +51,8 @@ global.USER = {
     group: 'privateteam',
 };
 
+// separated from USER as `USER` (e.g. in `username`)
+// is not yet available in same object
 USER.mock = {
     id: expect.any(String),
     create_at: expect.any(Number),
@@ -105,6 +107,28 @@ global.ALLUSERS = {
             manualTimezone: '',
             useAutomaticTimezone: 'true',
         },
+    },
+};
+
+global.CHANNEL = {
+    mock: {
+        id: expect.any(String),
+        create_at: expect.any(Number),
+        update_at: expect.any(Number),
+        delete_at: expect.any(Number),
+        team_id: expect.any(String),
+        type: expect.any(String),
+        display_name: expect.any(String),
+        name: expect.any(String),
+        header: '',
+        purpose: '',
+        last_post_at: expect.any(Number),
+        total_msg_count: expect.any(Number),
+        extra_update_at: expect.any(Number),
+        creator_id: expect.any(String),
+        scheme_id: null,
+        props: null,
+        group_constrained: null,
     },
 };
 

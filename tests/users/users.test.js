@@ -101,7 +101,7 @@ describe('users', () => {
     test('get all channels from current team for user', (done) => {
         client.on('channelsLoaded', function(channelData) {
             channelData.forEach(function(channel) {
-                //expect(channel).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
+                expect(channel).toMatchObject(CHANNEL.mock);
                 if (channel.name === PRIVATECHANNEL) {
                     privateChannel = channel;
                 }
@@ -117,8 +117,8 @@ describe('users', () => {
     test('get all channels from client', (done) => {
         // only available once `_onChannels` has been called once (via `loadChannels`)
         const channelData = client.getAllChannels();
-        Object.entries(channelData).forEach(function(channel) {
-            //expect(channel).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
+        Object.keys(channelData).forEach(function(channelId) {
+            expect(channelData[channelId]).toMatchObject(CHANNEL.mock);
         });
         done();
     });
@@ -127,9 +127,8 @@ describe('users', () => {
         // only available once `_onChannels` has been called once (via `loadChannels`)
         // `privateChannel` and `publicChannel` get set in
         // 'get all channels from current team for user'
-
-        // expect(client.getChannelByID(privateChannel.id)).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
-        // expect(client.getChannelByID(publicChannel.id)).toBeInstanceOf(Channel); // ToDo check why this fails / add TS
+        expect(client.getChannelByID(privateChannel.id)).toMatchObject(CHANNEL.mock);
+        expect(client.getChannelByID(publicChannel.id)).toMatchObject(CHANNEL.mock);
         done();
     });
 });
