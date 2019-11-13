@@ -17,6 +17,13 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2018
   },
+  settings: {
+    "import/resolver": {
+      "node": {
+        "extensions": [".js", ".jsx", ".ts", ".tsx"]
+      }
+    }
+  },
   plugins: ['@typescript-eslint'],
   rules: {
       'indent': [2, 4],
