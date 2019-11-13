@@ -132,5 +132,24 @@ global.CHANNEL = {
     },
 };
 
+global.TEAM = {
+    mock: {
+        id: expect.any(String),
+        create_at: expect.any(Number),
+        update_at: expect.any(Number),
+        delete_at: expect.any(Number),
+        display_name: expect.any(String),
+        name: expect.any(String),
+        email: expect.any(String),
+        type: expect.any(String),
+        company_name: expect.any(String),
+        allowed_domains: expect.any(String),
+        invite_id: expect.any(String),
+        allow_open_invite: expect.any(Boolean),
+        scheme_id: null,
+        group_constrained: null,
+    },
+};
+
 global.PRIVATECHANNEL = 'privatechannel';
 global.PUBLICCHANNEL = 'publicchannel';

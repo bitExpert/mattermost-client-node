@@ -323,7 +323,7 @@ class Client extends EventEmitter {
 
     _onChannels(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
-            data.forEach((channel: any) => {
+            data.forEach((channel: Channel) => {
                 this.channels[channel.id] = channel;
             });
             this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);

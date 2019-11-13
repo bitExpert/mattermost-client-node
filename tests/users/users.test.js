@@ -47,7 +47,7 @@ describe('users', () => {
     test('get teams for user', (done) => {
         client.on('teamsLoaded', function(teamData) {
             teamData.forEach(function(team) {
-                //expect(team).toBeInstanceOf(Team); // ToDo check why this fails / add TS
+                expect(team).toMatchObject(TEAM.mock);
             });
             done();
         });
@@ -97,7 +97,19 @@ describe('users', () => {
         done();
     });
 
-    // sets `privateChannel` and `publicChannel which is needed for some further tests
+    test('get all users from client', (done) => {
+        // only available once `_onLoadUsers` has been called once (via `loadUsers`)
+        const usersData = client.getAllUsers();
+        Object.values(usersData).forEach(function(user) {
+            expect(user).toMatchObject(ALLUSERS.mock);
+            if (user.username === USER.username) {
+                differentUser = user;
+            }
+        });
+        done();
+    });
+
+    // sets `privateChannel` and `publicChannel` which is needed for some further tests
     test('get all channels from current team for user', (done) => {
         client.on('channelsLoaded', function(channelData) {
             channelData.forEach(function(channel) {

@@ -17,6 +17,9 @@
   },
   "files": [
     "src/client.ts",
-    "src/user.ts"
+    "src/interfaces/channel.ts",
+    "src/interfaces/message.ts",
+    "src/interfaces/team.ts",
+    "src/interfaces/user.ts"
   ]
 }
