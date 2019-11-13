@@ -1,5 +1,4 @@
-/* eslint-disable */
-const Client = require('../../src/client.ts');
+import Client from '../../src/client.ts';
 
 /*
 beforeEach(() => {
@@ -15,7 +14,6 @@ afterAll(() => {
 });
 */
 
-module.exports = () =>
-describe('channels', () => {
+export default () => describe('channels', () => {
 
 });

@@ -1,5 +1,4 @@
-/* eslint-disable */
-const Client = require('../../src/client.ts');
+import Client from '../../src/client.ts';
 
 /*
 beforeEach(() => {
@@ -15,7 +14,7 @@ afterAll(() => {
 });
 */
 
-module.exports = () =>
+export default () =>
 describe('authentication', () => {
     describe('login', () => {
         test('client without any settings emits error', (done) => {

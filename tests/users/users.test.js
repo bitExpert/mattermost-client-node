@@ -1,5 +1,5 @@
-/* eslint-disable */
-const Client = require('../../src/client.ts');
+import Client from '../../src/client.ts';
+
 let client = null;
 let currentUser = null;
 let differentUser = null;
@@ -32,7 +32,7 @@ beforeEach((done) => {
 afterEach(() => {
 });
 */
-module.exports = () =>
+export default () =>
 describe('users', () => {
     test('get current user', (done) => {
         client.on('meLoaded', function(user) {

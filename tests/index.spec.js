@@ -1,9 +1,11 @@
-require('./constants.js');
+import initConstants from './constants';
+import authenticationTests from './authentication/authentication.test';
+import channelsTests from './channels/channels.test';
+import usersTests from './users/users.test';
 
-const authenticationTests = require('./authentication/authentication.test');
-const channelsTests = require('./channels/channels.test');
-const usersTests = require('./users/users.test');
+initConstants();
 
+// eslint-disable-next-line
 describe('sequentially run tests', () => {
     authenticationTests();
     channelsTests();
