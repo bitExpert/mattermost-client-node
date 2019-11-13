@@ -31,20 +31,23 @@ export default [
             file: 'dist/bundle.umd.js',
             format: 'umd',
             name: 'mattermostClient',
+            exports: 'named',
+        },
+        globals: {
+            ws: 'WebSocket',
+            // todo: check if we need more globals
         },
         plugins: [
-            typescript(),
-            json(),
             resolve({
-                preferBuiltins: true,
-                browser: true,
+                browser: false,
             }),
             commonjs({
                 include: [
-                    /node_modules/
+                    /node_modules/,
                 ],
             }),
-            builtins(),
+            json(),
+            typescript(),
         ],
     },
 ];
