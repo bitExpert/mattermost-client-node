@@ -18,4 +18,6 @@ interface User {
         manualTimezone: string;
         useAutomaticTimezone: boolean;
     };
+    isbot?: boolean;
+    bot_description?: string;
 }
