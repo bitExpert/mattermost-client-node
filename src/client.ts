@@ -452,7 +452,7 @@ class Client extends EventEmitter {
 
     loadUsers(page = 0, byTeam = true) {
         let uri = `/users?page=${page}&per_page=200`;
-        // get onlmm_get_channelsy users of team (surveybot NOT included)
+        // get only users of team (surveybot NOT included)
         if (byTeam) {
             uri += `&in_team=${this.teamID}`;
         }
