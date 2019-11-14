@@ -1,4 +1,4 @@
-import Client from '../../src/client.ts';
+import ClientUsers from '../../src/users.class';
 
 let client = null;
 let currentUser = null;
@@ -7,7 +7,7 @@ let privateChannel = null;
 let publicChannel = null;
 
 beforeAll((done) => {
-    client = new Client(CONNECTION.host, ADMIN.group, {
+    client = new ClientUsers(CONNECTION.host, ADMIN.group, {
         autoReconnect: false,
         useTLS: false,
         httpPort: CONNECTION.httpPort,

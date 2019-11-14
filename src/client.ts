@@ -5,6 +5,7 @@ import Log from 'log';
 import querystring from 'querystring';
 import { EventEmitter } from 'events';
 import HttpsProxyAgent from 'https-proxy-agent';
+import ClientUsers from './users.class';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
@@ -718,10 +719,6 @@ class Client extends EventEmitter {
 
     getChannelByID(id: string) {
         return this.channels[id];
-    }
-
-    getAllUsers() {
-        return this.users;
     }
 
     getUserByID(id: string) {

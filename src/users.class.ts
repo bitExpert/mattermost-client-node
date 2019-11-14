@@ -1,10 +1,9 @@
 import Client from './client';
 
-class Users extends Client {
-    constructor(host: string, group: string, options: any) {
-        super(host, group, options);
-        this.users = [];
+class ClientUsers extends Client {
+    getAllUsers() {
+        return this.users;
     }
 }
 
-export default Users;
+export default ClientUsers;
