@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "noImplicitAny": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "plugins": [
+      { "transform": "ts-auto-mock/transformer" }
+    ],
+    "baseUrl": "./",
+    "paths": {
+      "*" : ["src/@types/*"]
+    }
+  },
+  "files": [
+    "src/client.ts",
+    "src/users.class.ts",
+    "src/interfaces/channel.ts",
+    "src/interfaces/message.ts",
+    "src/interfaces/team.ts",
+    "src/interfaces/user.ts"
+  ]
+}
