@@ -1,8 +1,8 @@
 # Mattermost-client
 
-[![Build Status](https://github.com/loafoe/mattermost-client/workflows/CI/badge.svg)](https://github.com/loafoe/mattermost-client/actions?workflow=CI)
+[![Build Status](https://github.com/bitExpert/mattermost-client-node/workflows/CI/badge.svg)](https://github.com/bitExpert/mattermost-client-node/actions?workflow=CI)
 
-Mattermost client which uses the Web API and websockets, forked from [loafoe's mattermost client](https://github.com/bitExpert/mattermost-client), extended and refactored.
+Mattermost client which uses the Web API and websockets, forked from [loafoe's mattermost client](https://github.com/loafoe/mattermost-client), extended and refactored.
 
 # Features
 
