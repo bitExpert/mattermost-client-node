@@ -50,6 +50,12 @@ var __assign = function() {
     return __assign.apply(this, arguments);
 };
 
+var User = {
+    getAllUsers: function () {
+        return this.users;
+    },
+};
+
 var apiPrefix = '/api/v4';
 var usersRoute = '/users';
 var messageMaxRunes = 4000;
@@ -61,6 +67,7 @@ var Client = (function (_super) {
         _this.host = host;
         _this.group = group;
         _this.options = options || { wssPort: 443, httpPort: 80 };
+        _this.getAllUsers = User.getAllUsers;
         _this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {
             _this.useTLS = options.useTLS;
