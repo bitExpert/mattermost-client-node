@@ -15,10 +15,12 @@ jobs:
     - uses: actions/setup-node@v1
       with:
         node-version: ${{ matrix.node }}
-    - name: Build Mattermost environment and create test users
+    - name: Pull and start mattermost-preview image
+      run: docker run --name mattermost-preview -d --publish 8065:8065  --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview
+    - name: Wait until server is running
+      run: sleep 60
+    - name: Create test users
       run: |
-        docker run --name mattermost-preview -d --publish 8065:8065  --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview && \
-        sleep 60 && \
         docker exec mattermost-preview bash -c ' \
           mattermost user create --system_admin --email admin@example.com --username admin --password Admin12345! && \
           mattermost user create --email user@example.com --username user --password User12345! && \
@@ -27,8 +29,9 @@ jobs:
           mattermost channel create --team privateteam --name privatechannel --display_name "My Private Channel" --private && \
           mattermost channel create --team privateteam --name publicchannel --display_name "My Public Channel" && \
           mattermost channel add privateteam:privatechannel admin@example.com user@example.com && \
-          mattermost channel add privateteam:publicchannel admin@example.com user@example.com' && \
-          sleep 60
+          mattermost channel add privateteam:publicchannel admin@example.com user@example.com'
+    - name: Wait until migrations are done
+      run: sleep 60
     - name: Install dependencies
       run: yarn
     - name: run tests
