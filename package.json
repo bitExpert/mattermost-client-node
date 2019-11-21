@@ -2,7 +2,7 @@
   "name": "mattermost-client-node",
   "version": "7.0.2",
   "description": "Mattermost client",
-  "main": "./src/client.js",
+  "main": "./dist/bundle.cjs.js",
   "scripts": {
     "test": "yarn run test:lint && yarn run test:unit",
     "test:lint": "eslint src --ext .js,.ts",
@@ -70,7 +70,6 @@
     "rollup": "^1.26.3",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-json": "^4.0.0",
-    "rollup-plugin-node-builtins": "^2.1.2",
     "rollup-plugin-node-resolve": "^5.2.0",
     "rollup-plugin-typescript": "^1.0.1",
     "ts-jest": "^24.1.0",
