@@ -16,9 +16,27 @@
   },
   "keywords": [
     "mattermost",
+    "mattermost-client",
+    "client",
+    "node",
+    "nodejs",
+    "messaging",
+    "collaboration",
+    "teams",
+    "communications",
+    "javascript",
+    "typescript",
+    "ts",
+    "js",
     "chat"
   ],
-  "author": "Andy Lo-A-Foe",
+  "author": "Daniel Ruf <daniel@daniel-ruf.de>",
+  "contributors": [
+    {
+      "name": "Hagen Morano",
+      "email": "mail@hagenmorano.de"
+    }
+  ],
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/loafoe/mattermost-client/issues"
