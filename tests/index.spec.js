@@ -1,3 +1,4 @@
+import Client from '../src/client.ts';
 import initConstants from './constants';
 import authenticationTests from './authentication/authentication.test';
 import channelsTests from './channels/channels.test';
@@ -7,7 +8,7 @@ initConstants();
 
 // eslint-disable-next-line
 describe('sequentially run tests', () => {
-    authenticationTests();
-    channelsTests();
-    usersTests();
+    authenticationTests(Client);
+    channelsTests(Client);
+    usersTests(Client);
 });

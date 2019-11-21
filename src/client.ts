@@ -5,7 +5,7 @@ import Log from 'log';
 import querystring from 'querystring';
 import { EventEmitter } from 'events';
 import HttpsProxyAgent from 'https-proxy-agent';
-import ClientUsers from './users.class';
+import User from './user';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
@@ -77,11 +77,16 @@ class Client extends EventEmitter {
 
     _pongTimeout: NodeJS.Timeout;
 
+    getAllUsers: () => any;
+
     constructor(host: string, group: string, options: any) {
         super();
+
         this.host = host;
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
+
+        this.getAllUsers = User.getAllUsers;
 
         this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {

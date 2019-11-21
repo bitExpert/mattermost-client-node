@@ -1,41 +1,39 @@
-import ClientUsers from '../../src/users.class';
-
+/* eslint-disable no-undef */
 let client = null;
 let currentUser = null;
 let differentUser = null;
 let privateChannel = null;
 let publicChannel = null;
 
-beforeAll((done) => {
-    client = new ClientUsers(CONNECTION.host, ADMIN.group, {
-        autoReconnect: false,
-        useTLS: false,
-        httpPort: CONNECTION.httpPort,
-        wssPort: CONNECTION.wsPort,
-        logger: 'noop',
+export default (Client) => describe('users', () => {
+    beforeAll((done) => {
+        client = new Client(CONNECTION.host, ADMIN.group, {
+            autoReconnect: false,
+            useTLS: false,
+            httpPort: CONNECTION.httpPort,
+            wssPort: CONNECTION.wsPort,
+            logger: 'noop',
+        });
+        client.on('loggedIn', (userData) => {
+            currentUser = userData;
+            done();
+        });
+        client.login(ADMIN.email, ADMIN.password, null);
     });
-    client.on('loggedIn', function(userData){
-        currentUser = userData;
-        done();
+
+    afterAll(() => {
+        client.disconnect();
     });
-    client.login(ADMIN.email, ADMIN.password, null);
-});
+    /*
+    beforeEach((done) => {
+    });
 
-afterAll(() => {
-    client.disconnect();
-});
+    afterEach(() => {
+    });
+    */
 
-/*
-beforeEach((done) => {
-});
-
-afterEach(() => {
-});
-*/
-export default () =>
-describe('users', () => {
     test('get current user', (done) => {
-        client.on('meLoaded', function(user) {
+        client.on('meLoaded', (user) => {
             expect(user).toMatchObject(ADMIN.mock);
             // user from login should be the same user as getMe()
             expect(user).toEqual(currentUser);
@@ -45,8 +43,8 @@ describe('users', () => {
     });
 
     test('get teams for user', (done) => {
-        client.on('teamsLoaded', function(teamData) {
-            teamData.forEach(function(team) {
+        client.on('teamsLoaded', (teamData) => {
+            teamData.forEach((team) => {
                 expect(team).toMatchObject(TEAM.mock);
             });
             done();
@@ -57,8 +55,8 @@ describe('users', () => {
     // sets `differentUser` which is needed for some further tests
     test('get all available users', (done) => {
         // ToDo test multiple pages: loadUsers(page)
-        client.on('profilesLoaded', function(usersData) {
-            usersData.forEach(function(user) {
+        client.on('profilesLoaded', (usersData) => {
+            usersData.forEach((user) => {
                 expect(user).toMatchObject(ALLUSERS.mock);
                 if (user.username === USER.username) {
                     differentUser = user;
@@ -71,7 +69,7 @@ describe('users', () => {
 
     test('get single user by ID from API', (done) => {
         expect(differentUser).not.toBeNull();
-        client.on('profilesLoaded', function(user) {
+        client.on('profilesLoaded', (user) => {
             expect(user[0]).toMatchObject(ALLUSERS.mock);
             done();
         });
@@ -100,7 +98,7 @@ describe('users', () => {
     test('get all users from client', (done) => {
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
         const usersData = client.getAllUsers();
-        Object.values(usersData).forEach(function(user) {
+        Object.values(usersData).forEach((user) => {
             expect(user).toMatchObject(ALLUSERS.mock);
             if (user.username === USER.username) {
                 differentUser = user;
@@ -111,8 +109,8 @@ describe('users', () => {
 
     // sets `privateChannel` and `publicChannel` which is needed for some further tests
     test('get all channels from current team for user', (done) => {
-        client.on('channelsLoaded', function(channelData) {
-            channelData.forEach(function(channel) {
+        client.on('channelsLoaded', (channelData) => {
+            channelData.forEach((channel) => {
                 expect(channel).toMatchObject(CHANNEL.mock);
                 if (channel.name === PRIVATECHANNEL) {
                     privateChannel = channel;
@@ -129,7 +127,7 @@ describe('users', () => {
     test('get all channels from client', (done) => {
         // only available once `_onChannels` has been called once (via `loadChannels`)
         const channelData = client.getAllChannels();
-        Object.keys(channelData).forEach(function(channelId) {
+        Object.keys(channelData).forEach((channelId) => {
             expect(channelData[channelId]).toMatchObject(CHANNEL.mock);
         });
         done();
