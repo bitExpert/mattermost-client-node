@@ -1,6 +1,6 @@
 {
   "name": "mattermost-client-node",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "description": "Mattermost client",
   "main": "./src/client.js",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/loafoe/mattermost-client.git"
+    "url": "git+https://github.com/bitExpert/mattermost-client-node.git"
   },
   "keywords": [
     "mattermost",
@@ -39,9 +39,9 @@
   ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/loafoe/mattermost-client/issues"
+    "url": "https://github.com/bitExpert/mattermost-client-node/issues"
   },
-  "homepage": "https://github.com/loafoe/mattermost-client#readme",
+  "homepage": "https://github.com/bitExpert/mattermost-client-node#readme",
   "dependencies": {
     "extend": "^3.0.2",
     "https-proxy-agent": "^3.0.0",
