@@ -1,5 +1,5 @@
 export default {
-    getAllUsers() {
+    getAllUsers(): any {
         return this.users;
     },
 };
