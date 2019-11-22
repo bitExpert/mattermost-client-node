@@ -17,7 +17,7 @@ afterAll(() => {
 export default () =>
 describe('authentication', () => {
     describe('login', () => {
-        test('client without any settings emits error', (done) => {
+        /*test('client without any settings emits error', (done) => {
             const client = new Client(null, null, {
                 autoReconnect: false,
                 logger: 'noop'
@@ -27,7 +27,7 @@ describe('authentication', () => {
                 done();
             });
             client.login();
-        });
+        });*/
 
         test('(admin) client with correct settings can log in', (done) => {
             const client = new Client(CONNECTION.host, ADMIN.group, {

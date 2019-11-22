@@ -8,21 +8,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [ '12', '10', '8' ]
+        node: [ '12', '10' ]
     name: Node ${{ matrix.node }}
     steps:
     - uses: actions/checkout@v1
     - uses: actions/setup-node@v1
       with:
         node-version: ${{ matrix.node }}
-    - name: Install dependencies
-      run: yarn
-    - name: run tests
-      run: yarn test
     - name: Build Mattermost environment and create test users
       run: |
-        docker pull mattermost/platform && \
-        docker run --name mattermost-preview -d --publish 8065:8065 --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview && \
+        docker run --name mattermost-preview -d --publish 8065:8065  --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview && \
+        sleep 60 && \
         docker exec mattermost-preview bash -c ' \
           mattermost user create --system_admin --email admin@example.com --username admin --password Admin12345! && \
           mattermost user create --email user@example.com --username user --password User12345! && \
@@ -31,15 +27,9 @@ jobs:
           mattermost channel create --team privateteam --name privatechannel --display_name "My Private Channel" --private && \
           mattermost channel create --team privateteam --name publicchannel --display_name "My Public Channel" && \
           mattermost channel add privateteam:privatechannel admin@example.com user@example.com && \
-          mattermost channel add privateteam:publicchannel admin@example.com user@example.com'
-
-  build_latest:
-    name: Node latest
-    runs-on: ubuntu-latest
-    container: node:latest
-    steps:
-    - uses: actions/checkout@v1
-    - name: install dependencies
+          mattermost channel add privateteam:publicchannel admin@example.com user@example.com' && \
+          sleep 60
+    - name: Install dependencies
       run: yarn
     - name: run tests
       run: yarn test
