@@ -1,5 +1,4 @@
-import Client from '../../src/client.ts';
-
+/* eslint-disable no-undef */
 /*
 beforeEach(() => {
 });
@@ -14,9 +13,9 @@ afterAll(() => {
 });
 */
 
-export default () =>
-describe('authentication', () => {
+export default (Client) => describe('authentication', () => {
     describe('login', () => {
+        /*
         test('client without any settings emits error', (done) => {
             const client = new Client(null, null, {
                 autoReconnect: false,
@@ -28,6 +27,7 @@ describe('authentication', () => {
             });
             client.login();
         });
+        */
 
         test('(admin) client with correct settings can log in', (done) => {
             const client = new Client(CONNECTION.host, ADMIN.group, {
@@ -35,9 +35,9 @@ describe('authentication', () => {
                 useTLS: false,
                 httpPort: CONNECTION.httpPort,
                 wssPort: CONNECTION.wsPort,
-                logger: 'noop'
+                logger: 'noop',
             });
-            client.on('loggedIn', function(user){
+            client.on('loggedIn', (user) => {
                 expect(user).toMatchObject(ADMIN.mock);
                 expect(typeof user.email).toEqual('string');
                 expect(user.email).toEqual(ADMIN.email);
@@ -54,9 +54,9 @@ describe('authentication', () => {
                 useTLS: false,
                 httpPort: CONNECTION.httpPort,
                 wssPort: CONNECTION.wsPort,
-                logger: 'noop'
+                logger: 'noop',
             });
-            client.on('loggedIn', function(user){
+            client.on('loggedIn', (user) => {
                 expect(user).toMatchObject(ADMIN.mock);
                 expect(typeof user.email).toEqual('string');
                 expect(user.email).toEqual(ADMIN.email);
@@ -73,9 +73,9 @@ describe('authentication', () => {
                 useTLS: true,
                 httpPort: CONNECTION.httpPort,
                 wssPort: CONNECTION.wsPort,
-                logger: 'noop'
+                logger: 'noop',
             });
-            client.on('error', function(err){
+            client.on('error', (err) => {
                 expect(err).toEqual({ id: null, error: 'EPROTO' });
                 done();
             });
@@ -88,9 +88,9 @@ describe('authentication', () => {
                 useTLS: false,
                 httpPort: CONNECTION.httpPort,
                 wssPort: CONNECTION.wsPort,
-                logger: 'noop'
+                logger: 'noop',
             });
-            client.on('loggedIn', function(user){
+            client.on('loggedIn', (user) => {
                 expect(user).toMatchObject(USER.mock);
                 expect(typeof user.email).toEqual('string');
                 expect(user.email).toEqual(USER.email);
@@ -107,9 +107,9 @@ describe('authentication', () => {
                 useTLS: false,
                 httpPort: CONNECTION.httpPort,
                 wssPort: CONNECTION.wsPort,
-                logger: 'noop'
+                logger: 'noop',
             });
-            client.on('loggedIn', function(user){
+            client.on('loggedIn', (user) => {
                 expect(user).toMatchObject(USER.mock);
                 expect(typeof user.email).toEqual('string');
                 expect(user.email).toEqual(USER.email);
@@ -126,9 +126,9 @@ describe('authentication', () => {
                 useTLS: true,
                 httpPort: CONNECTION.httpPort,
                 wssPort: CONNECTION.wsPort,
-                logger: 'noop'
+                logger: 'noop',
             });
-            client.on('error', function(err){
+            client.on('error', (err) => {
                 expect(err).toEqual({ id: null, error: 'EPROTO' });
                 done();
             });

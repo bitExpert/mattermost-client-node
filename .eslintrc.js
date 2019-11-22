@@ -29,6 +29,7 @@ module.exports = {
       'indent': [2, 4],
       'no-underscore-dangle': 'off',
       'camelcase': 'off',
-      'no-unused-vars': 'off'
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': [2, {'args': 'after-used', 'argsIgnorePattern': '^_'}]
   },
 };

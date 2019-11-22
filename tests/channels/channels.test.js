@@ -1,5 +1,4 @@
-import Client from '../../src/client.ts';
-
+/* eslint-disable no-undef */
 /*
 beforeEach(() => {
 });
@@ -14,6 +13,6 @@ afterAll(() => {
 });
 */
 
-export default () => describe('channels', () => {
+export default (Client) => describe('channels', () => {
 
 });

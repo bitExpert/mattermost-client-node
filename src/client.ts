@@ -5,7 +5,7 @@ import Log from 'log';
 import querystring from 'querystring';
 import { EventEmitter } from 'events';
 import HttpsProxyAgent from 'https-proxy-agent';
-import ClientUsers from './users.class';
+import User from './user';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
@@ -77,11 +77,16 @@ class Client extends EventEmitter {
 
     _pongTimeout: NodeJS.Timeout;
 
+    getAllUsers: () => any;
+
     constructor(host: string, group: string, options: any) {
         super();
+
         this.host = host;
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
+
+        this.getAllUsers = User.getAllUsers;
 
         this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {
@@ -713,19 +718,19 @@ class Client extends EventEmitter {
         this.createDirectChannel(userID, callback);
     }
 
-    getAllChannels() {
+    getAllChannels(): Record<string, any> {
         return this.channels;
     }
 
-    getChannelByID(id: string) {
+    getChannelByID(id: string): Record<string, any> {
         return this.channels[id];
     }
 
-    getUserByID(id: string) {
+    getUserByID(id: string): Record<string, any> {
         return this.users[id];
     }
 
-    getUserByEmail(email: string) {
+    getUserByEmail(email: string): Record<string, any> {
         return Object.values(this.users)
             .find((user: any) => user.email === email);
     }
@@ -876,7 +881,7 @@ class Client extends EventEmitter {
         );
     }
 
-    findChannelByName(name: string) {
+    findChannelByName(name: string): string | null {
         const foundChannel = Object.keys(this.channels)
             .find((channel: any) => {
                 const channelName = this.channels[channel].name;
@@ -886,7 +891,7 @@ class Client extends EventEmitter {
         return foundChannel || null;
     }
 
-    static _chunkMessage(msg: any) {
+    static _chunkMessage(msg: any): Array<string> {
         if (!msg) {
             return [''];
         }
@@ -959,7 +964,7 @@ class Client extends EventEmitter {
 
     // Private functions
     //
-    _send(message: any) {
+    _send(message: any): any {
         const messageExt = { ...message };
         if (!this.connected) {
             return false;
@@ -1030,7 +1035,7 @@ class Client extends EventEmitter {
         });
     }
 
-    _getApiUrl(path: string) {
+    _getApiUrl(path: string): string {
         const protocol = this.useTLS ? 'https://' : 'http://';
         const port = (this.options.httpPort != null) ? `:${this.options.httpPort}` : '';
         return protocol + this.host + port + apiPrefix + path;
