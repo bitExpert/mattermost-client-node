@@ -1,6 +1,6 @@
 {
   "name": "mattermost-client-node",
-  "version": "7.0.3",
+  "version": "7.0.4",
   "description": "Mattermost client",
   "main": "./dist/bundle.cjs.js",
   "scripts": {
