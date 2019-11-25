@@ -620,7 +620,7 @@ class Client extends EventEmitter {
                 this.ws.close();
             }
 
-            this._connAttempts = this._connAttempts + 1;
+            this._connAttempts += 1;
 
             const timeout = this._connAttempts * 1000;
             this.logger.info('Reconnecting in %dms', timeout);
@@ -969,7 +969,7 @@ class Client extends EventEmitter {
         if (!this.connected) {
             return false;
         }
-        this._messageID = this._messageID + 1;
+        this._messageID += 1;
         messageExt.id = this._messageID;
         messageExt.seq = message.id;
         this._pending[message.id] = message;
