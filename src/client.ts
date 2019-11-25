@@ -126,7 +126,8 @@ class Client extends EventEmitter {
 
         this._connAttempts = 0;
 
-        this.logger = new Log(process.env.MATTERMOST_LOG_LEVEL || 'info');
+        process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
+
         if (typeof options.logger !== 'undefined') {
             switch (options.logger) {
             case 'noop':
@@ -139,9 +140,11 @@ class Client extends EventEmitter {
                 };
                 break;
             default:
-                this.logger = new Log(process.env.MATTERMOST_LOG_LEVEL || options.logger);
+                this.logger = options.logger;
                 break;
             }
+        } else {
+            this.logger = Log;
         }
 
         // Binding because async calls galore
