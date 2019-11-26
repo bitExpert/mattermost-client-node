@@ -1,5 +1,5 @@
 import request from 'request';
-import WS from 'ws';
+import WebSocket from 'isomorphic-ws';
 import TextEncoding from 'text-encoding';
 import Log from 'log';
 import querystring from 'querystring';
@@ -552,7 +552,7 @@ class Client extends EventEmitter {
             this.ws.close();
             this.ws = null;
         }
-        this.ws = new WS(this.socketUrl, options);
+        this.ws = new WebSocket(this.socketUrl, options);
 
         this.ws.on('error', (error: any) => {
             this._connecting = false;
