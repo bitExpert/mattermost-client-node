@@ -8,7 +8,8 @@
     "test:lint": "eslint src --ext .js,.ts",
     "test:unit": "jest --runInBand",
     "test:unit:watch": "jest --runInBand --watch",
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "docs": "typedoc --out docs src"
   },
   "repository": {
     "type": "git",
@@ -75,6 +76,7 @@
     "rollup-plugin-typescript": "^1.0.1",
     "ts-jest": "^24.2.0",
     "tslib": "^1.10.0",
+    "typedoc": "^0.15.3",
     "typescript": "^3.6.4"
   },
   "husky": {
