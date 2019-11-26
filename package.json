@@ -42,6 +42,9 @@
     "url": "https://github.com/bitExpert/mattermost-client-node/issues"
   },
   "homepage": "https://github.com/bitExpert/mattermost-client-node#readme",
+  "engines": {
+    "node": ">=10"
+  },
   "dependencies": {
     "extend": "^3.0.2",
     "https-proxy-agent": "^3.0.0",
@@ -49,9 +52,6 @@
     "log": "^6.0.0",
     "request": "^2.88.0",
     "text-encoding": "^0.7.0"
-  },
-  "engines": {
-    "node": ">=10"
   },
   "devDependencies": {
     "@babel/core": "^7.7.4",
