@@ -1,4 +1,8 @@
 import typescript from 'rollup-plugin-typescript';
+import nodePolyfills from 'rollup-plugin-node-polyfills';
+// import resolve from 'rollup-plugin-node-resolve';
+// import commonjs from 'rollup-plugin-commonjs';
+// import json from 'rollup-plugin-commonjs';
 
 export default [
     {
@@ -21,29 +25,18 @@ export default [
             typescript(),
         ],
     },
-    /* {
+    {
         input: 'src/client.ts',
         output: {
             file: 'dist/bundle.umd.js',
             format: 'umd',
             name: 'mattermostClient',
-            exports: 'named',
-        },
-        globals: {
-            ws: 'WebSocket',
-            // todo: check if we need more globals
         },
         plugins: [
-            resolve({
-                browser: false,
-            }),
-            commonjs({
-                include: [
-                    /node_modules/,
-                ],
-            }),
-            json(),
+            // commonjs(),
+            // json(),
             typescript(),
+            nodePolyfills(),
         ],
-    }, */
+    },
 ];
