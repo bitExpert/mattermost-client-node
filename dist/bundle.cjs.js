@@ -3,7 +3,7 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var request = _interopDefault(require('request'));
-var WS = _interopDefault(require('ws'));
+var WebSocket = _interopDefault(require('isomorphic-ws'));
 var TextEncoding = _interopDefault(require('text-encoding'));
 var Log = _interopDefault(require('log'));
 var querystring = _interopDefault(require('querystring'));
@@ -98,7 +98,7 @@ var Client = (function (_super) {
         _this._connecting = false;
         _this._reconnecting = false;
         _this._connAttempts = 0;
-        _this.logger = new Log(process.env.MATTERMOST_LOG_LEVEL || 'info');
+        process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
         if (typeof options.logger !== 'undefined') {
             switch (options.logger) {
                 case 'noop':
@@ -111,9 +111,12 @@ var Client = (function (_super) {
                     };
                     break;
                 default:
-                    _this.logger = new Log(process.env.MATTERMOST_LOG_LEVEL || options.logger);
+                    _this.logger = options.logger;
                     break;
             }
+        }
+        else {
+            _this.logger = Log;
         }
         _this._onLogin = _this._onLogin.bind(_this);
         _this._onCreateTeam = _this._onCreateTeam.bind(_this);
@@ -465,7 +468,7 @@ var Client = (function (_super) {
             this.ws.close();
             this.ws = null;
         }
-        this.ws = new WS(this.socketUrl, options);
+        this.ws = new WebSocket(this.socketUrl, options);
         this.ws.on('error', function (error) {
             _this._connecting = false;
             return _this.emit('error', error);
@@ -529,7 +532,7 @@ var Client = (function (_super) {
             if (this.ws) {
                 this.ws.close();
             }
-            this._connAttempts = this._connAttempts + 1;
+            this._connAttempts += 1;
             var timeout = this._connAttempts * 1000;
             this.logger.info('Reconnecting in %dms', timeout);
             return setTimeout(function () {
@@ -796,7 +799,7 @@ var Client = (function (_super) {
         if (!this.connected) {
             return false;
         }
-        this._messageID = this._messageID + 1;
+        this._messageID += 1;
         messageExt.id = this._messageID;
         messageExt.seq = message.id;
         this._pending[message.id] = message;
