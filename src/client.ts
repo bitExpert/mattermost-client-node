@@ -1,5 +1,5 @@
 import request from 'request';
-import WS from 'ws';
+import WebSocket from 'isomorphic-ws';
 import TextEncoding from 'text-encoding';
 import Log from 'log';
 import querystring from 'querystring';
@@ -126,7 +126,8 @@ class Client extends EventEmitter {
 
         this._connAttempts = 0;
 
-        this.logger = new Log(process.env.MATTERMOST_LOG_LEVEL || 'info');
+        process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
+
         if (typeof options.logger !== 'undefined') {
             switch (options.logger) {
             case 'noop':
@@ -139,9 +140,11 @@ class Client extends EventEmitter {
                 };
                 break;
             default:
-                this.logger = new Log(process.env.MATTERMOST_LOG_LEVEL || options.logger);
+                this.logger = options.logger;
                 break;
             }
+        } else {
+            this.logger = Log;
         }
 
         // Binding because async calls galore
@@ -549,7 +552,7 @@ class Client extends EventEmitter {
             this.ws.close();
             this.ws = null;
         }
-        this.ws = new WS(this.socketUrl, options);
+        this.ws = new WebSocket(this.socketUrl, options);
 
         this.ws.on('error', (error: any) => {
             this._connecting = false;
@@ -620,7 +623,7 @@ class Client extends EventEmitter {
                 this.ws.close();
             }
 
-            this._connAttempts = this._connAttempts + 1;
+            this._connAttempts += 1;
 
             const timeout = this._connAttempts * 1000;
             this.logger.info('Reconnecting in %dms', timeout);
@@ -969,7 +972,7 @@ class Client extends EventEmitter {
         if (!this.connected) {
             return false;
         }
-        this._messageID = this._messageID + 1;
+        this._messageID += 1;
         messageExt.id = this._messageID;
         messageExt.seq = message.id;
         this._pending[message.id] = message;

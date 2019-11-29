@@ -8,7 +8,8 @@
     "test:lint": "eslint src --ext .js,.ts",
     "test:unit": "jest --runInBand",
     "test:unit:watch": "jest --runInBand --watch",
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "docs": "typedoc --out docs src"
   },
   "repository": {
     "type": "git",
@@ -42,35 +43,46 @@
     "url": "https://github.com/bitExpert/mattermost-client-node/issues"
   },
   "homepage": "https://github.com/bitExpert/mattermost-client-node#readme",
+  "engines": {
+    "node": ">=10"
+  },
   "dependencies": {
     "extend": "^3.0.2",
     "https-proxy-agent": "^3.0.0",
-    "log": "^1.4.0",
+    "isomorphic-ws": "^4.0.1",
+    "log": "^6.0.0",
     "request": "^2.88.0",
     "text-encoding": "^0.7.0",
     "ws": "^7.2.0"
   },
-  "engines": {
-    "node": ">=10"
-  },
   "devDependencies": {
-    "@babel/core": "^7.7.2",
-    "@babel/preset-env": "^7.7.1",
+    "@babel/core": "^7.7.4",
+    "@babel/preset-env": "^7.7.4",
     "@types/jest": "^24.0.21",
     "@types/request": "^2.48.3",
     "@types/text-encoding": "^0.0.35",
-    "@types/ws": "^6.0.3",
-    "@typescript-eslint/eslint-plugin": "^2.6.1",
-    "@typescript-eslint/parser": "^2.6.1",
+    "@types/ws": "^6.0.4",
+    "@typescript-eslint/eslint-plugin": "^2.9.0",
+    "@typescript-eslint/parser": "^2.9.0",
     "babel-jest": "^24.9.0",
-    "eslint": "^6.5.1",
+    "eslint": "^6.7.1",
     "eslint-config-airbnb-base": "^14.0.0",
     "eslint-plugin-import": "^2.18.2",
+    "husky": "^3.1.0",
     "jest": "^24.9.0",
-    "rollup": "^1.26.3",
+    "rollup": "^1.27.5",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-node-polyfills": "^0.2.1",
+    "rollup-plugin-node-resolve": "^5.2.0",
     "rollup-plugin-typescript": "^1.0.1",
-    "ts-jest": "^24.1.0",
+    "ts-jest": "^24.2.0",
     "tslib": "^1.10.0",
+    "typedoc": "^0.15.3",
     "typescript": "^3.6.4"
+  },
+  "husky": {
+    "hooks": {
+      "pre-push": "yarn test:lint"
+    }
   }
 }
