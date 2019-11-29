@@ -3,6 +3,7 @@
   "version": "7.1.0",
   "description": "Mattermost client",
   "main": "./dist/bundle.cjs.js",
+  "module": "./dist/bundle.esm.js",
   "scripts": {
     "test": "yarn test:lint && yarn test:unit",
     "test:lint": "eslint src --ext .js,.ts",
