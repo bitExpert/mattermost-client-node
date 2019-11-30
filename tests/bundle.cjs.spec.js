@@ -7,7 +7,7 @@ import usersTests from './users/users.test';
 initConstants();
 
 // eslint-disable-next-line
-describe('sequentially run bundle tests', () => {
+describe('sequentially run cjs bundle tests', () => {
     authenticationTests(Client);
     channelsTests(Client);
     usersTests(Client);
