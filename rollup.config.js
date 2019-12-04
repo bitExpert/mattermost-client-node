@@ -25,18 +25,18 @@ export default [
             typescript(),
         ],
     },
-    {
-        input: 'src/client.ts',
-        output: {
-            file: 'dist/bundle.umd.js',
-            format: 'umd',
-            name: 'mattermostClient',
-        },
-        plugins: [
-            // commonjs(),
-            // json(),
-            typescript(),
-            nodePolyfills(),
-        ],
-    },
+    // {
+    //     input: 'src/client.ts',
+    //     output: {
+    //         file: 'dist/bundle.umd.js',
+    //         format: 'umd',
+    //         name: 'mattermostClient',
+    //     },
+    //     plugins: [
+    //         // commonjs(),
+    //         // json(),
+    //         typescript(),
+    //         nodePolyfills(),
+    //     ],
+    // },
 ];
