@@ -594,7 +594,9 @@ class Client extends EventEmitter {
             return this._pongTimeout;
         });
 
-        this.ws.on('message', (data: any, _flags: any) => this.onMessage(JSON.parse(data)));
+        this.ws.on('message', (data: any, _flags: any) => {
+            this.onMessage(JSON.parse(data));
+        });
 
         this.ws.on('close', (code: any, message: any) => {
             this.emit('close', code, message);
