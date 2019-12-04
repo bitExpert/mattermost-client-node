@@ -157,4 +157,11 @@ export default () => {
 
     global.PRIVATECHANNEL = 'privatechannel';
     global.PUBLICCHANNEL = 'publicchannel';
+
+    global.WSMESSAGE = {
+        mock: {
+            id: expect.any(Number),
+            seq: expect.any(Number),
+        },
+    };
 };

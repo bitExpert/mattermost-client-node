@@ -503,7 +503,9 @@ var Client = (function (_super) {
             }, _this._pingInterval);
             return _this._pongTimeout;
         });
-        this.ws.on('message', function (data, _flags) { return _this.onMessage(JSON.parse(data)); });
+        this.ws.on('message', function (data, _flags) {
+            _this.onMessage(JSON.parse(data));
+        });
         this.ws.on('close', function (code, message) {
             _this.emit('close', code, message);
             _this._connecting = false;
@@ -797,8 +799,8 @@ var Client = (function (_super) {
         }
         this._messageID += 1;
         messageExt.id = this._messageID;
-        messageExt.seq = message.id;
-        this._pending[message.id] = message;
+        messageExt.seq = messageExt.id;
+        this._pending[messageExt.id] = messageExt;
         this.ws.send(JSON.stringify(messageExt));
         return messageExt;
     };
