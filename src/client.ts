@@ -976,8 +976,8 @@ class Client extends EventEmitter {
         }
         this._messageID += 1;
         messageExt.id = this._messageID;
-        messageExt.seq = message.id;
-        this._pending[message.id] = message;
+        messageExt.seq = messageExt.id;
+        this._pending[messageExt.id] = messageExt;
         this.ws.send(JSON.stringify(messageExt));
         return messageExt;
     }
