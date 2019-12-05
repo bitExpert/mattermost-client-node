@@ -3,7 +3,7 @@ let client = null;
 
 export default (Client) => describe('websocket', () => {
     beforeAll((done) => {
-        client = new Client(CONNECTION.host, ADMIN.group, {
+        client = new Client(CONNECTION.host, ADMIN.team, {
             autoReconnect: false,
             useTLS: false,
             httpPort: CONNECTION.httpPort,

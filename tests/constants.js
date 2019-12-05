@@ -12,7 +12,7 @@ export default () => {
         username: 'admin',
         email: 'admin@example.com',
         password: 'Admin12345!',
-        group: 'privateteam',
+        team: 'privateteam',
     };
 
     ADMIN.mock = {

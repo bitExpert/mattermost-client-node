@@ -134,6 +134,7 @@ var Client = (function (_super) {
         _this._onPreferences = _this._onPreferences.bind(_this);
         _this._onMe = _this._onMe.bind(_this);
         _this._onTeams = _this._onTeams.bind(_this);
+        _this._onTeamsByName = _this._onTeamsByName.bind(_this);
         _this._onUnreadsForChannels = _this._onUnreadsForChannels.bind(_this);
         _this._onChannelLastViewed = _this._onChannelLastViewed.bind(_this);
         _this._onMembersFromChannels = _this._onMembersFromChannels.bind(_this);
@@ -163,8 +164,8 @@ var Client = (function (_super) {
         var uri = '/teams';
         return this._apiCall('POST', uri, { name: name, display_name: display_name, type: type }, this._onCreateTeam);
     };
-    Client.prototype.checkIfTeamExists = function (teamId) {
-        var uri = "/teams/name/" + teamId + "/exists";
+    Client.prototype.checkIfTeamExists = function (teamName) {
+        var uri = "/teams/name/" + teamName + "/exists";
         return this._apiCall('GET', uri, null, this._onCheckIfTeamExists);
     };
     Client.prototype.addUserToTeam = function (user_id, team_id) {
@@ -172,7 +173,7 @@ var Client = (function (_super) {
             team_id: team_id,
             user_id: user_id,
         };
-        var uri = "/teams/name/" + team_id + "/members";
+        var uri = "/teams/" + team_id + "/members";
         return this._apiCall('POST', uri, postData, this._onAddUserToTeam);
     };
     Client.prototype.tokenLogin = function (token) {
@@ -370,6 +371,14 @@ var Client = (function (_super) {
         this.logger.error('Failed to load Teams...');
         return this.reconnect();
     };
+    Client.prototype._onTeamsByName = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.logger.info("Found " + Object.keys(data).length + " channels.");
+            return this.emit('teamsByNameLoaded', data);
+        }
+        this.logger.error("Failed to get team by name from server: " + data.error);
+        return this.emit('error', { msg: 'failed to get team by name' });
+    };
     Client.prototype.channelRoute = function (channelId) {
         return this.teamRoute() + "/channels/" + channelId;
     };
@@ -390,6 +399,11 @@ var Client = (function (_super) {
         var uri = usersRoute + "/me/teams";
         this.logger.info("Loading " + uri);
         return this._apiCall('GET', uri, null, this._onTeams);
+    };
+    Client.prototype.getTeamByName = function (teamName) {
+        var uri = "/teams/name/" + teamName;
+        this.logger.info("Loading " + uri);
+        return this._apiCall('GET', uri, null, this._onTeamsByName);
     };
     Client.prototype.loadUsers = function (page, byTeam) {
         if (page === void 0) { page = 0; }

@@ -7,7 +7,7 @@ let publicChannel = null;
 
 export default (Client) => describe('users', () => {
     beforeAll((done) => {
-        client = new Client(CONNECTION.host, ADMIN.group, {
+        client = new Client(CONNECTION.host, ADMIN.team, {
             autoReconnect: false,
             useTLS: false,
             httpPort: CONNECTION.httpPort,
@@ -50,6 +50,14 @@ export default (Client) => describe('users', () => {
             done();
         });
         client.getTeams();
+    });
+
+    test('get team by name', (done) => {
+        client.on('teamsByNameLoaded', (teamData) => {
+            expect(teamData).toMatchObject(TEAM.mock);
+            done();
+        });
+        client.getTeamByName(ADMIN.team);
     });
 
     // sets `differentUser` which is needed for some further tests

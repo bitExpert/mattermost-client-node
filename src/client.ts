@@ -164,6 +164,7 @@ class Client extends EventEmitter {
         this._onPreferences = this._onPreferences.bind(this);
         this._onMe = this._onMe.bind(this);
         this._onTeams = this._onTeams.bind(this);
+        this._onTeamsByName = this._onTeamsByName.bind(this);
         this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
         this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
         this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
@@ -205,8 +206,8 @@ class Client extends EventEmitter {
         return this._apiCall('POST', uri, { name, display_name, type }, this._onCreateTeam);
     }
 
-    checkIfTeamExists(teamId: string) {
-        const uri = `/teams/name/${teamId}/exists`;
+    checkIfTeamExists(teamName: string) {
+        const uri = `/teams/name/${teamName}/exists`;
         return this._apiCall('GET', uri, null, this._onCheckIfTeamExists);
     }
 
@@ -219,7 +220,7 @@ class Client extends EventEmitter {
             user_id,
         };
         // eslint-disable-next-line @typescript-eslint/camelcase
-        const uri = `/teams/name/${team_id}/members`;
+        const uri = `/teams/${team_id}/members`;
         return this._apiCall('POST', uri, postData, this._onAddUserToTeam);
     }
 
@@ -436,6 +437,15 @@ class Client extends EventEmitter {
         return this.reconnect();
     }
 
+    _onTeamsByName(data: any, _headers: any, _params: any) {
+        if (data && !data.error) {
+            this.logger.info(`Found ${Object.keys(data).length} channels.`);
+            return this.emit('teamsByNameLoaded', data);
+        }
+        this.logger.error(`Failed to get team by name from server: ${data.error}`);
+        return this.emit('error', { msg: 'failed to get team by name' });
+    }
+
     channelRoute(channelId: string) {
         return `${this.teamRoute()}/channels/${channelId}`;
     }
@@ -460,6 +470,12 @@ class Client extends EventEmitter {
         const uri = `${usersRoute}/me/teams`;
         this.logger.info(`Loading ${uri}`);
         return this._apiCall('GET', uri, null, this._onTeams);
+    }
+
+    getTeamByName(teamName: string) {
+        const uri = `/teams/name/${teamName}`;
+        this.logger.info(`Loading ${uri}`);
+        return this._apiCall('GET', uri, null, this._onTeamsByName);
     }
 
     loadUsers(page = 0, byTeam = true) {

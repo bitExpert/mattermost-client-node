@@ -30,7 +30,7 @@ export default (Client) => describe('authentication', () => {
         */
 
         test('(admin) client with correct settings can log in', (done) => {
-            const client = new Client(CONNECTION.host, ADMIN.group, {
+            const client = new Client(CONNECTION.host, ADMIN.team, {
                 autoReconnect: false,
                 useTLS: false,
                 httpPort: CONNECTION.httpPort,
@@ -49,7 +49,7 @@ export default (Client) => describe('authentication', () => {
         });
 
         test('(admin) client with correct settings can log in with autoReconnect: true', (done) => {
-            const client = new Client(CONNECTION.host, ADMIN.group, {
+            const client = new Client(CONNECTION.host, ADMIN.team, {
                 autoReconnect: true,
                 useTLS: false,
                 httpPort: CONNECTION.httpPort,
@@ -68,7 +68,7 @@ export default (Client) => describe('authentication', () => {
         });
 
         test('(admin) client throws EPROTO error when TLS can not be used', (done) => {
-            const client = new Client(CONNECTION.host, ADMIN.group, {
+            const client = new Client(CONNECTION.host, ADMIN.team, {
                 autoReconnect: false,
                 useTLS: true,
                 httpPort: CONNECTION.httpPort,
