@@ -346,6 +346,9 @@ var Client = (function (_super) {
         if (data && !data.error) {
             this.teams = data;
             this.emit('teamsLoaded', data);
+            if (!data.length) {
+                return this.teams;
+            }
             this.logger.info("Found " + Object.keys(this.teams).length + " teams.");
             this.teams
                 .find(function (team) {

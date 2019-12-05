@@ -414,6 +414,10 @@ class Client extends EventEmitter {
         if (data && !data.error) {
             this.teams = data;
             this.emit('teamsLoaded', data);
+            // do not go further if user is not added to a team
+            if (!data.length) {
+                return this.teams;
+            }
             this.logger.info(`Found ${Object.keys(this.teams).length} teams.`);
             this.teams
                 .find((team: any) => {

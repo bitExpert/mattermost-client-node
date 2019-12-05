@@ -124,7 +124,7 @@ export default () => {
             type: expect.any(String),
             display_name: expect.any(String),
             name: expect.any(String),
-            header: '',
+            header: expect.any(String),
             purpose: '',
             last_post_at: expect.any(Number),
             total_msg_count: expect.any(Number),
