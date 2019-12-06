@@ -511,8 +511,10 @@ class Client extends EventEmitter {
         const allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
         const params: any = {};
         Object.entries(options).forEach((option: any) => {
-            if (allowedOptions.indexOf(option) >= 0) {
-                params[option] = options[option];
+            const key = option[0];
+            const value = option[1];
+            if (allowedOptions.indexOf(key) >= 0) {
+                params[key] = value;
             }
         });
         // set standard params for page / per_page if not set
