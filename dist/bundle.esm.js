@@ -432,8 +432,10 @@ var Client = (function (_super) {
         var allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
         var params = {};
         Object.entries(options).forEach(function (option) {
-            if (allowedOptions.indexOf(option) >= 0) {
-                params[option] = options[option];
+            var key = option[0];
+            var value = option[1];
+            if (allowedOptions.indexOf(key) >= 0) {
+                params[key] = value;
             }
         });
         if (!params.page) {
