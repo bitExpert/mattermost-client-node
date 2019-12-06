@@ -771,7 +771,7 @@ class Client extends EventEmitter {
         let chunks: any;
         const postDataExt = { ...postData };
         if (postDataExt.message != null) {
-            chunks = Client._chunkMessage(postData.message);
+            chunks = this._chunkMessage(postData.message);
             postDataExt.message = chunks.shift();
         }
         // eslint-disable-next-line @typescript-eslint/camelcase
@@ -923,7 +923,7 @@ class Client extends EventEmitter {
         return foundChannel || null;
     }
 
-    static _chunkMessage(msg: any): Array<string> {
+    _chunkMessage(msg: any): Array<string> {
         if (!msg) {
             return [''];
         }
@@ -958,7 +958,7 @@ class Client extends EventEmitter {
         }
 
         // break apart long messages
-        const chunks = Client._chunkMessage(postData.message);
+        const chunks = this._chunkMessage(postData.message);
         postData.message = chunks.shift();
 
         return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
