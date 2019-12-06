@@ -9,7 +9,6 @@ import User from './user';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
-const messageMaxRunes = 4000;
 const defaultPingInterval = 60000;
 
 class Client extends EventEmitter {
@@ -20,6 +19,8 @@ class Client extends EventEmitter {
     options: any;
 
     useTLS: boolean;
+
+    messageMaxRunes: number;
 
     tlsverify: boolean;
 
@@ -85,6 +86,7 @@ class Client extends EventEmitter {
         this.host = host;
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
+        this.messageMaxRunes = 4000;
 
         this.getAllUsers = User.getAllUsers;
 
@@ -95,6 +97,9 @@ class Client extends EventEmitter {
         this.tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
         if (typeof options.tlsverify !== 'undefined') {
             this.tlsverify = options.tlsverify;
+        }
+        if (typeof options.messageMaxRunes !== 'undefined') {
+            this.messageMaxRunes = options.messageMaxRunes;
         }
 
         this.authenticated = false;
@@ -766,7 +771,7 @@ class Client extends EventEmitter {
         let chunks: any;
         const postDataExt = { ...postData };
         if (postDataExt.message != null) {
-            chunks = Client._chunkMessage(postData.message);
+            chunks = this._chunkMessage(postData.message);
             postDataExt.message = chunks.shift();
         }
         // eslint-disable-next-line @typescript-eslint/camelcase
@@ -918,11 +923,11 @@ class Client extends EventEmitter {
         return foundChannel || null;
     }
 
-    static _chunkMessage(msg: any): Array<string> {
+    _chunkMessage(msg: any): Array<string> {
         if (!msg) {
             return [''];
         }
-        return msg.match(new RegExp(`(.|[\r\n]){1,${messageMaxRunes}}`, 'g'));
+        return msg.match(new RegExp(`(.|[\r\n]){1,${this.messageMaxRunes}}`, 'g'));
     }
 
     postMessage(msg: any, channelID: string) {
@@ -953,7 +958,7 @@ class Client extends EventEmitter {
         }
 
         // break apart long messages
-        const chunks = Client._chunkMessage(postData.message);
+        const chunks = this._chunkMessage(postData.message);
         postData.message = chunks.shift();
 
         return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
