@@ -137,11 +137,21 @@ class Client extends EventEmitter {
             switch (options.logger) {
             case 'noop':
                 this.logger = {
-                    debug: () => {},
-                    info: () => {},
-                    notice: () => {},
-                    warning: () => {},
-                    error: () => {},
+                    debug: () => {
+                        // do nothing
+                    },
+                    info: () => {
+                        // do nothing
+                    },
+                    notice: () => {
+                        // do nothing
+                    },
+                    warning: () => {
+                        // do nothing
+                    },
+                    error: () => {
+                        // do nothing
+                    },
                 };
                 break;
             default:
