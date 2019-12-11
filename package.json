@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "extend": "^3.0.2",
-    "https-proxy-agent": "^3.0.0",
+    "https-proxy-agent": "^4.0.0",
     "isomorphic-ws": "^4.0.1",
     "log": "^6.0.0",
     "request": "^2.88.0",
@@ -57,29 +57,29 @@
     "ws": "^7.2.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.7.4",
-    "@babel/preset-env": "^7.7.4",
+    "@babel/core": "^7.7.5",
+    "@babel/preset-env": "^7.7.6",
     "@types/jest": "^24.0.21",
     "@types/request": "^2.48.3",
     "@types/text-encoding": "^0.0.35",
     "@types/ws": "^6.0.4",
-    "@typescript-eslint/eslint-plugin": "^2.9.0",
-    "@typescript-eslint/parser": "^2.9.0",
+    "@typescript-eslint/eslint-plugin": "^2.11.0",
+    "@typescript-eslint/parser": "^2.11.0",
     "babel-jest": "^24.9.0",
-    "eslint": "^6.7.1",
+    "eslint": "^6.7.2",
     "eslint-config-airbnb-base": "^14.0.0",
-    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-import": "^2.19.1",
     "husky": "^3.1.0",
     "jest": "^24.9.0",
-    "rollup": "^1.27.5",
+    "rollup": "^1.27.10",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-polyfills": "^0.2.1",
     "rollup-plugin-node-resolve": "^5.2.0",
     "rollup-plugin-typescript": "^1.0.1",
     "ts-jest": "^24.2.0",
     "tslib": "^1.10.0",
-    "typedoc": "^0.15.3",
-    "typescript": "^3.6.4"
+    "typedoc": "^0.15.4",
+    "typescript": "^3.7.3"
   },
   "husky": {
     "hooks": {
