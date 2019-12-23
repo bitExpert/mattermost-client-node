@@ -9,7 +9,6 @@ import User from './user';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
-const messageMaxRunes = 4000;
 const defaultPingInterval = 60000;
 
 class Client extends EventEmitter {
@@ -20,6 +19,10 @@ class Client extends EventEmitter {
     options: any;
 
     useTLS: boolean;
+
+    messageMaxRunes: number;
+
+    additionalHeaders: object;
 
     tlsverify: boolean;
 
@@ -85,6 +88,8 @@ class Client extends EventEmitter {
         this.host = host;
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
+        this.messageMaxRunes = 4000;
+        this.additionalHeaders = {};
 
         this.getAllUsers = User.getAllUsers;
 
@@ -95,6 +100,14 @@ class Client extends EventEmitter {
         this.tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
         if (typeof options.tlsverify !== 'undefined') {
             this.tlsverify = options.tlsverify;
+        }
+
+        if (typeof options.messageMaxRunes !== 'undefined') {
+            this.messageMaxRunes = options.messageMaxRunes;
+        }
+
+        if (typeof options.additionalHeaders === 'object') {
+            this.additionalHeaders = options.additionalHeaders;
         }
 
         this.authenticated = false;
@@ -132,11 +145,21 @@ class Client extends EventEmitter {
             switch (options.logger) {
             case 'noop':
                 this.logger = {
-                    debug: () => {},
-                    info: () => {},
-                    notice: () => {},
-                    warning: () => {},
-                    error: () => {},
+                    debug: () => {
+                        // do nothing
+                    },
+                    info: () => {
+                        // do nothing
+                    },
+                    notice: () => {
+                        // do nothing
+                    },
+                    warning: () => {
+                        // do nothing
+                    },
+                    error: () => {
+                        // do nothing
+                    },
                 };
                 break;
             default:
@@ -328,7 +351,7 @@ class Client extends EventEmitter {
             this.users[data.id] = data;
             return this.emit('profilesLoaded', [data]);
         }
-        return this.emit('error', { msg: 'data missing or incorrect' });
+        return this.emit('error', { msg: 'failed to load profile' });
     }
 
     _onChannels(data: any, _headers: any, _params: any) {
@@ -348,16 +371,16 @@ class Client extends EventEmitter {
             Object.entries(data).forEach((channel: any) => {
                 this.channels[channel.id] = channel;
             });
-            this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
+            this.logger.info(`Found ${Object.keys(data).length} users.`);
             return this.emit('usersOfChannelLoaded', data);
         }
-        this.logger.error(`Failed to get subscribed channels list from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get channel list' });
+        this.logger.error(`Failed to get channel users from server: ${data.error}`);
+        return this.emit('error', { msg: 'failed to get channel users' });
     }
 
     _onMessages(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
-            this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
+            this.logger.info(`Found ${Object.keys(data).length} messages.`);
             return this.emit('messagesLoaded', data);
         }
         this.logger.error(`Failed to get messages from server: ${data.error}`);
@@ -766,7 +789,7 @@ class Client extends EventEmitter {
         let chunks: any;
         const postDataExt = { ...postData };
         if (postDataExt.message != null) {
-            chunks = Client._chunkMessage(postData.message);
+            chunks = this._chunkMessage(postData.message);
             postDataExt.message = chunks.shift();
         }
         // eslint-disable-next-line @typescript-eslint/camelcase
@@ -918,11 +941,11 @@ class Client extends EventEmitter {
         return foundChannel || null;
     }
 
-    static _chunkMessage(msg: any): Array<string> {
+    _chunkMessage(msg: any): Array<string> {
         if (!msg) {
             return [''];
         }
-        return msg.match(new RegExp(`(.|[\r\n]){1,${messageMaxRunes}}`, 'g'));
+        return msg.match(new RegExp(`(.|[\r\n]){1,${this.messageMaxRunes}}`, 'g'));
     }
 
     postMessage(msg: any, channelID: string) {
@@ -953,7 +976,7 @@ class Client extends EventEmitter {
         }
 
         // break apart long messages
-        const chunks = Client._chunkMessage(postData.message);
+        const chunks = this._chunkMessage(postData.message);
         postData.message = chunks.shift();
 
         return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
@@ -1026,6 +1049,10 @@ class Client extends EventEmitter {
                 'X-Requested-With': 'XMLHttpRequest',
             },
         };
+
+        if (this.additionalHeaders) {
+            options.headers = Object.assign(options.headers, { ...this.additionalHeaders });
+        }
 
         if (this.token) { options.headers.Authorization = `BEARER ${this.token}`; }
         if (this.httpProxy) { options.proxy = this.httpProxy; }

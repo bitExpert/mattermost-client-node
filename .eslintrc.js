@@ -18,9 +18,9 @@ module.exports = {
     ecmaVersion: 2018
   },
   settings: {
-    "import/resolver": {
-      "node": {
-        "extensions": [".js", ".jsx", ".ts", ".tsx"]
+    'import/resolver': {
+      'node': {
+        'extensions': ['.js', '.jsx', '.ts', '.tsx']
       }
     }
   },
@@ -30,6 +30,16 @@ module.exports = {
       'no-underscore-dangle': 'off',
       'camelcase': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': [2, {'args': 'after-used', 'argsIgnorePattern': '^_'}]
+      '@typescript-eslint/no-unused-vars': [2, {'args': 'after-used', 'argsIgnorePattern': '^_'}],
+      'import/extensions': [
+        'error',
+        'ignorePackages',
+        {
+          'js': 'never',
+          'jsx': 'never',
+          'ts': 'never',
+          'tsx': 'never'
+        }
+     ]
   },
 };

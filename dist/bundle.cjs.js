@@ -58,7 +58,6 @@ var User = {
 
 var apiPrefix = '/api/v4';
 var usersRoute = '/users';
-var messageMaxRunes = 4000;
 var defaultPingInterval = 60000;
 var Client = (function (_super) {
     __extends(Client, _super);
@@ -67,6 +66,8 @@ var Client = (function (_super) {
         _this.host = host;
         _this.group = group;
         _this.options = options || { wssPort: 443, httpPort: 80 };
+        _this.messageMaxRunes = 4000;
+        _this.additionalHeaders = {};
         _this.getAllUsers = User.getAllUsers;
         _this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {
@@ -75,6 +76,12 @@ var Client = (function (_super) {
         _this.tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
         if (typeof options.tlsverify !== 'undefined') {
             _this.tlsverify = options.tlsverify;
+        }
+        if (typeof options.messageMaxRunes !== 'undefined') {
+            _this.messageMaxRunes = options.messageMaxRunes;
+        }
+        if (typeof options.additionalHeaders === 'object') {
+            _this.additionalHeaders = options.additionalHeaders;
         }
         _this.authenticated = false;
         _this.connected = false;
@@ -103,11 +110,16 @@ var Client = (function (_super) {
             switch (options.logger) {
                 case 'noop':
                     _this.logger = {
-                        debug: function () { },
-                        info: function () { },
-                        notice: function () { },
-                        warning: function () { },
-                        error: function () { },
+                        debug: function () {
+                        },
+                        info: function () {
+                        },
+                        notice: function () {
+                        },
+                        warning: function () {
+                        },
+                        error: function () {
+                        },
                     };
                     break;
                 default:
@@ -270,7 +282,7 @@ var Client = (function (_super) {
             this.users[data.id] = data;
             return this.emit('profilesLoaded', [data]);
         }
-        return this.emit('error', { msg: 'data missing or incorrect' });
+        return this.emit('error', { msg: 'failed to load profile' });
     };
     Client.prototype._onChannels = function (data, _headers, _params) {
         var _this = this;
@@ -290,15 +302,15 @@ var Client = (function (_super) {
             Object.entries(data).forEach(function (channel) {
                 _this.channels[channel.id] = channel;
             });
-            this.logger.info("Found " + Object.keys(data).length + " subscribed channels.");
+            this.logger.info("Found " + Object.keys(data).length + " users.");
             return this.emit('usersOfChannelLoaded', data);
         }
-        this.logger.error("Failed to get subscribed channels list from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get channel list' });
+        this.logger.error("Failed to get channel users from server: " + data.error);
+        return this.emit('error', { msg: 'failed to get channel users' });
     };
     Client.prototype._onMessages = function (data, _headers, _params) {
         if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " subscribed channels.");
+            this.logger.info("Found " + Object.keys(data).length + " messages.");
             return this.emit('messagesLoaded', data);
         }
         this.logger.error("Failed to get messages from server: " + data.error);
@@ -656,7 +668,7 @@ var Client = (function (_super) {
         var chunks;
         var postDataExt = __assign({}, postData);
         if (postDataExt.message != null) {
-            chunks = Client._chunkMessage(postData.message);
+            chunks = this._chunkMessage(postData.message);
             postDataExt.message = chunks.shift();
         }
         postDataExt.channel_id = channelID;
@@ -764,11 +776,11 @@ var Client = (function (_super) {
         });
         return foundChannel || null;
     };
-    Client._chunkMessage = function (msg) {
+    Client.prototype._chunkMessage = function (msg) {
         if (!msg) {
             return [''];
         }
-        return msg.match(new RegExp("(.|[\r\n]){1," + messageMaxRunes + "}", 'g'));
+        return msg.match(new RegExp("(.|[\r\n]){1," + this.messageMaxRunes + "}", 'g'));
     };
     Client.prototype.postMessage = function (msg, channelID) {
         var _this = this;
@@ -791,7 +803,7 @@ var Client = (function (_super) {
                 postData.file_ids = msg.file_ids;
             }
         }
-        var chunks = Client._chunkMessage(postData.message);
+        var chunks = this._chunkMessage(postData.message);
         postData.message = chunks.shift();
         return this._apiCall('POST', '/posts', postData, function (_data, _headers) {
             _this.logger.debug('Posted message.');
@@ -845,6 +857,9 @@ var Client = (function (_super) {
                 'X-Requested-With': 'XMLHttpRequest',
             },
         };
+        if (this.additionalHeaders) {
+            options.headers = Object.assign(options.headers, __assign({}, this.additionalHeaders));
+        }
         if (this.token) {
             options.headers.Authorization = "BEARER " + this.token;
         }
