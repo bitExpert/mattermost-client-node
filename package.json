@@ -71,6 +71,7 @@
     "eslint-plugin-import": "^2.19.1",
     "husky": "^3.1.0",
     "jest": "^24.9.0",
+    "lint-staged": ">=8",
     "rollup": "^1.27.14",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-polyfills": "^0.2.1",
@@ -83,7 +84,13 @@
   },
   "husky": {
     "hooks": {
-      "pre-commit": "yarn test:lint"
+      "pre-commit": "lint-staged"
     }
+  },
+  "lint-staged": {
+    "*.{js,ts}": [
+      "eslint",
+      "git add"
+    ]
   }
 }
