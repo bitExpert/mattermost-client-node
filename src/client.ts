@@ -32,7 +32,7 @@ class Client extends EventEmitter {
 
     hasAccessToken: boolean;
 
-    token: any;
+    token: string;
 
     self: any;
 
@@ -42,7 +42,7 @@ class Client extends EventEmitter {
 
     teams: any;
 
-    teamID: any;
+    teamID: string;
 
     ws: any;
 
@@ -52,7 +52,7 @@ class Client extends EventEmitter {
 
     _pingInterval: any;
 
-    autoReconnect: any;
+    autoReconnect: boolean;
 
     httpProxy: any;
 
