@@ -343,7 +343,7 @@ class Client extends EventEmitter {
             this.users[data.id] = data;
             return this.emit('profilesLoaded', [data]);
         }
-        return this.emit('error', { msg: 'data missing or incorrect' });
+        return this.emit('error', { msg: 'failed to load profile' });
     }
 
     _onChannels(data: any, _headers: any, _params: any) {
@@ -363,16 +363,16 @@ class Client extends EventEmitter {
             Object.entries(data).forEach((channel: any) => {
                 this.channels[channel.id] = channel;
             });
-            this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
+            this.logger.info(`Found ${Object.keys(data).length} users.`);
             return this.emit('usersOfChannelLoaded', data);
         }
-        this.logger.error(`Failed to get subscribed channels list from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get channel list' });
+        this.logger.error(`Failed to get channel users from server: ${data.error}`);
+        return this.emit('error', { msg: 'failed to get channel users' });
     }
 
     _onMessages(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
-            this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
+            this.logger.info(`Found ${Object.keys(data).length} messages.`);
             return this.emit('messagesLoaded', data);
         }
         this.logger.error(`Failed to get messages from server: ${data.error}`);
