@@ -22,6 +22,8 @@ class Client extends EventEmitter {
 
     messageMaxRunes: number;
 
+    additionalHeaders: object;
+
     tlsverify: boolean;
 
     authenticated: boolean;
@@ -87,6 +89,7 @@ class Client extends EventEmitter {
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
         this.messageMaxRunes = 4000;
+        this.additionalHeaders = {};
 
         this.getAllUsers = User.getAllUsers;
 
@@ -98,8 +101,13 @@ class Client extends EventEmitter {
         if (typeof options.tlsverify !== 'undefined') {
             this.tlsverify = options.tlsverify;
         }
+
         if (typeof options.messageMaxRunes !== 'undefined') {
             this.messageMaxRunes = options.messageMaxRunes;
+        }
+
+        if (typeof options.additionalHeaders === 'object') {
+            this.additionalHeaders = options.additionalHeaders;
         }
 
         this.authenticated = false;
@@ -1041,6 +1049,10 @@ class Client extends EventEmitter {
                 'X-Requested-With': 'XMLHttpRequest',
             },
         };
+
+        if (this.additionalHeaders) {
+            options.headers = Object.assign(options.headers, { ...this.additionalHeaders });
+        }
 
         if (this.token) { options.headers.Authorization = `BEARER ${this.token}`; }
         if (this.httpProxy) { options.proxy = this.httpProxy; }
