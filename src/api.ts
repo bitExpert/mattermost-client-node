@@ -4,38 +4,14 @@ import request from 'request';
 const apiPrefix = '/api/v4';
 
 class Api {
-    tlsVerify: boolean;
-
-    additionalHeaders: object = {};
-
-    logger: any;
-
-    httpProxy: any;
-
-    useTLS: boolean;
-
-    options: any;
-
-    host: string;
+    client: any;
 
     private _token: string = null;
 
     constructor(
-        tlsVerify: boolean,
-        additionalHeaders: object,
-        logger: any,
-        httpProxy: any,
-        useTLS: boolean,
-        options: any,
-        host: string,
+        client: any,
     ) {
-        this.tlsVerify = tlsVerify;
-        this.additionalHeaders = additionalHeaders;
-        this.logger = logger;
-        this.httpProxy = httpProxy;
-        this.useTLS = useTLS;
-        this.options = options;
-        this.host = host;
+        this.client = client;
     }
 
     apiCall(
@@ -45,14 +21,14 @@ class Api {
         callback: any,
         callbackParams: any = {},
         isForm = false,
-    ) {
+    ): any {
         let postData = '';
         if (params != null) { postData = JSON.stringify(params); }
         const options: any = {
             uri: this._getApiUrl(path),
             method,
             json: params,
-            rejectUnauthorized: this.tlsVerify,
+            rejectUnauthorized: this.client.tlsverify,
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
@@ -60,12 +36,15 @@ class Api {
             },
         };
 
-        if (this.additionalHeaders) {
-            options.headers = Object.assign(options.headers, { ...this.additionalHeaders });
+        if (this.client.additionalHeaders) {
+            options.headers = Object.assign(
+                options.headers,
+                { ...this.client.additionalHeaders },
+            );
         }
 
         if (this._token) { options.headers.Authorization = `BEARER ${this._token}`; }
-        if (this.httpProxy) { options.proxy = this.httpProxy; }
+        if (this.client.httpProxy) { options.proxy = this.client.httpProxy; }
 
         if (isForm) {
             options.headers['Content-Type'] = 'multipart/form-data';
@@ -74,8 +53,8 @@ class Api {
             options.formData = params;
         }
 
-        this.logger.debug(`${method} ${path}`);
-        this.logger.info(`api url:${options.uri}`);
+        this.client.logger.debug(`${method} ${path}`);
+        this.client.logger.info(`api url:${options.uri}`);
 
         return request(options, (error: any, res: any, value: any) => {
             if (error) {
@@ -100,9 +79,9 @@ class Api {
     }
 
     _getApiUrl(path: string): string {
-        const protocol = this.useTLS ? 'https://' : 'http://';
-        const port = this.options.httpPort ? `:${this.options.httpPort}` : '';
-        return protocol + this.host + port + apiPrefix + path;
+        const protocol = this.client.useTLS ? 'https://' : 'http://';
+        const port = this.client.options.httpPort ? `:${this.client.options.httpPort}` : '';
+        return protocol + this.client.host + port + apiPrefix + path;
     }
 
     // gets set on tokenLogin() in client

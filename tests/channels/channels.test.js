@@ -13,6 +13,6 @@ afterAll(() => {
 });
 */
 
-export default (Client) => describe('channels', () => {
-
+export default (_Client) => describe('channels', () => {
+    //
 });

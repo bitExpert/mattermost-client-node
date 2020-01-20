@@ -37,8 +37,6 @@ class Client extends EventEmitter {
 
     channels: any;
 
-    users: any;
-
     teams: any;
 
     teamID: string;
@@ -173,35 +171,21 @@ class Client extends EventEmitter {
     }
 
     initModules() {
-        this.User = new User();
-        this.Api = new Api(
-            this.tlsverify,
-            this.additionalHeaders,
-            this.logger,
-            this.httpProxy,
-            this.useTLS,
-            this.options,
-            this.host,
-        );
+        this.Api = new Api(this);
+        this.User = new User(this, usersRoute);
     }
 
     initBindings() {
         // Binding because async calls galore
+
         this._onLogin = this._onLogin.bind(this);
         this._onCreateTeam = this._onCreateTeam.bind(this);
         this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
-        this._onCreateTeam = this._onCreateTeam.bind(this);
-        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
         this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
-        this._onCreateUser = this._onCreateUser.bind(this);
-        this._onLoadUsers = this._onLoadUsers.bind(this);
-        this._onLoadUser = this._onLoadUser.bind(this);
         this._onChannels = this._onChannels.bind(this);
         this._onUsersOfChannel = this._onUsersOfChannel.bind(this);
         this._onMessages = this._onMessages.bind(this);
-        this._onPreferences = this._onPreferences.bind(this);
-        this._onMe = this._onMe.bind(this);
         this._onTeams = this._onTeams.bind(this);
         this._onTeamsByName = this._onTeamsByName.bind(this);
         this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
@@ -233,11 +217,6 @@ class Client extends EventEmitter {
         return this.Api.apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`, {}, this._onRevoke);
     }
 
-    createUser(user: IUser) {
-        const uri = `${usersRoute}?iid=`;
-        return this.Api.apiCall('POST', uri, user, this._onCreateUser);
-    }
-
     // eslint-disable-next-line @typescript-eslint/camelcase
     createTeam(name: string, display_name: string, type = 'I') {
         const uri = '/teams';
@@ -262,7 +241,6 @@ class Client extends EventEmitter {
         const uri = `/teams/${team_id}/members`;
         return this.Api.apiCall('POST', uri, postData, this._onAddUserToTeam);
     }
-
 
     tokenLogin(token: string) {
         this.token = token;
@@ -292,8 +270,8 @@ class Client extends EventEmitter {
             this.logger.info(`Websocket URL: ${this.socketUrl}`);
             this.self = data;
             this.emit('loggedIn', this.self);
-            this.getMe();
-            this.getPreferences();
+            this.User.getMe();
+            this.User.getPreferences();
             return this.getTeams();
         }
         this.emit('error', data);
@@ -337,39 +315,6 @@ class Client extends EventEmitter {
         }
         this.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
         return this.emit('error', data);
-    }
-
-    _onCreateUser(data: any) {
-        if (data.id) {
-            this.logger.info('Creating user...');
-            return this.emit('created', data);
-        }
-        this.logger.error('User creation failed', JSON.stringify(data));
-        return this.emit('error', data);
-    }
-
-    _onLoadUsers(data: IUser[] | any, _headers: any, params: any) {
-        if (data && !data.error) {
-            data.forEach((user: IUser) => {
-                this.User.users[user.id] = user;
-            });
-            this.logger.info(`Found ${Object.keys(data).length} profiles.`);
-            this.emit('profilesLoaded', data);
-            if ((Object.keys(data).length > 200) && (params.page != null)) {
-                return this.loadUsers(params.page + 1); // Trigger next page loading
-            }
-            return this.User.users;
-        }
-        this.logger.error('Failed to load profiles from server.');
-        return this.emit('error', { msg: 'failed to load profiles' });
-    }
-
-    _onLoadUser(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.User.users[data.id] = data;
-            return this.emit('profilesLoaded', [data]);
-        }
-        return this.emit('error', { msg: 'failed to load profile' });
     }
 
     _onChannels(data: any, _headers: any, _params: any) {
@@ -432,26 +377,6 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get all members from channels' });
     }
 
-    _onPreferences(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.preferences = data;
-            this.emit('preferencesLoaded', data);
-            return this.logger.info('Loaded Preferences...');
-        }
-        this.logger.error(`Failed to load Preferences...${data.error}`);
-        return this.reconnect();
-    }
-
-    _onMe(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.me = data;
-            this.emit('meLoaded', data);
-            return this.logger.info('Loaded Me...');
-        }
-        this.logger.error(`Failed to load Me...${data.error}`);
-        return this.reconnect();
-    }
-
     _onTeams(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.teams = data;
@@ -471,7 +396,7 @@ class Client extends EventEmitter {
                     }
                     return isTeamFound;
                 });
-            this.loadUsers();
+            this.User.loadUsers();
             return this.loadChannels();
         }
         this.logger.error('Failed to load Teams...');
@@ -495,18 +420,6 @@ class Client extends EventEmitter {
         return `${usersRoute}/me/teams/${this.teamID}`;
     }
 
-    getMe() {
-        const uri = `${usersRoute}/me`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onMe);
-    }
-
-    getPreferences() {
-        const uri = `${usersRoute}/me/preferences`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onPreferences);
-    }
-
     getTeams() {
         const uri = `${usersRoute}/me/teams`;
         this.logger.info(`Loading ${uri}`);
@@ -517,22 +430,6 @@ class Client extends EventEmitter {
         const uri = `/teams/name/${teamName}`;
         this.logger.info(`Loading ${uri}`);
         return this.Api.apiCall('GET', uri, null, this._onTeamsByName);
-    }
-
-    loadUsers(page = 0, byTeam = true) {
-        let uri = `/users?page=${page}&per_page=200`;
-        // get only users of team (surveybot NOT included)
-        if (byTeam) {
-            uri += `&in_team=${this.teamID}`;
-        }
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onLoadUsers, { page });
-    }
-
-    loadUser(userId: string) {
-        const uri = `/users/${userId}`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onLoadUser, {});
     }
 
     loadChannels() {
@@ -755,7 +652,7 @@ class Client extends EventEmitter {
             // Generic handler
             return this.emit(message.event, message);
         case 'new_user':
-            this.loadUser(message.data.user_id);
+            this.User.loadUser(message.data.user_id);
             return this.emit('new_user', message);
         default:
             // Check for `pong` response

@@ -1,18 +1,22 @@
 import Client from '../dist/bundle.esm';
-import initConstants from './constants';
-import optionsTests from './options/options.test';
-import authenticationTests from './authentication/authentication.test';
-import channelsTests from './channels/channels.test';
-import usersTests from './users/users.test';
-import websocketTests from './websocket/websocket.test';
+import {
+    authenticationTests,
+    channelsTests,
+    initConstants,
+    optionsTests,
+    teamsTests,
+    usersTests,
+    websocketTests,
+} from './testsuite-loader';
 
 initConstants();
 
 // eslint-disable-next-line
 describe('sequentially run esm bundle tests', () => {
-    optionsTests(Client);
     authenticationTests(Client);
     channelsTests(Client);
+    optionsTests(Client);
+    teamsTests(Client);
     usersTests(Client);
     websocketTests(Client);
 });

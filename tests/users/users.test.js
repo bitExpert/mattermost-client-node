@@ -39,7 +39,17 @@ export default (Client) => describe('users', () => {
             expect(user).toEqual(currentUser);
             done();
         });
-        client.getMe();
+        client.User.getMe();
+    });
+
+    test('get users preferences', (done) => {
+        client.on('preferencesLoaded', (preferences) => {
+            preferences.forEach((preference) => {
+                expect(preference).toMatchObject(PREFERENCES.mock);
+            });
+            done();
+        });
+        client.User.getPreferences();
     });
 
     test('get teams for user', (done) => {
@@ -72,7 +82,7 @@ export default (Client) => describe('users', () => {
             });
             done();
         });
-        client.loadUsers();
+        client.User.loadUsers();
     });
 
     test('get single user by ID from API', (done) => {
@@ -82,7 +92,7 @@ export default (Client) => describe('users', () => {
             done();
         });
         // `differentUser` gets set in 'get all available users'
-        client.loadUser(differentUser.id);
+        client.User.loadUser(differentUser.id);
     });
 
     test('get single user by ID from client', (done) => {

@@ -1,3 +1,5 @@
+/* eslint-disable no-undef */
+/* eslint-disable @typescript-eslint/camelcase */
 // eslint-disable-next-line import/no-extraneous-dependencies
 import expect from 'expect';
 
@@ -152,6 +154,15 @@ export default () => {
             allow_open_invite: expect.any(Boolean),
             scheme_id: null,
             group_constrained: null,
+        },
+    };
+
+    global.PREFERENCES = {
+        mock: {
+            user_id: expect.any(String),
+            category: expect.any(String),
+            name: expect.any(String),
+            value: expect.any(String),
         },
     };
 
