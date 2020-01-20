@@ -7,8 +7,8 @@
   "scripts": {
     "test": "yarn test:lint && yarn test:unit",
     "test:lint": "eslint src --ext .js,.ts",
-    "test:unit": "jest --runInBand",
-    "test:unit:watch": "jest --runInBand --watch",
+    "test:unit": "jest --runInBand --verbose",
+    "test:unit:watch": "jest --runInBand --watch --verbose",
     "build": "rollup -c",
     "docs": "typedoc --out docs src"
   },
