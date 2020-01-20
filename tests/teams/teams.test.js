@@ -1,19 +1,65 @@
-
 /* eslint-disable no-undef */
-/*
-beforeEach(() => {
-});
+let client = null;
+let teamID;
 
-afterEach(() => {
-});
+export default (Client) => describe('teams', () => {
+    beforeAll((done) => {
+        client = new Client(CONNECTION.host, ADMIN.team, {
+            autoReconnect: false,
+            useTLS: false,
+            httpPort: CONNECTION.httpPort,
+            wssPort: CONNECTION.wsPort,
+            logger: 'noop',
+        });
+        client.on('loggedIn', () => {
+            done();
+        });
+        client.login(ADMIN.email, ADMIN.password, null);
+    });
 
-beforeAll(() => {
-});
+    afterAll(() => {
+        client.disconnect();
+    });
 
-afterAll(() => {
-});
-*/
+    /*
+    beforeEach((done) => {
+    });
 
-export default (_Client) => describe('teams', () => {
-    //
+    afterEach(() => {
+    });
+    */
+
+    test('get teams for user', (done) => {
+        client.on('teamsLoaded', (teamData) => {
+            teamData.forEach((team) => {
+                expect(team).toMatchObject(TEAM.mock);
+            });
+            done();
+        });
+        client.getTeams();
+    });
+
+    test('get team by name', (done) => {
+        client.on('teamsByNameLoaded', (teamData) => {
+            expect(teamData).toMatchObject(TEAM.mock);
+            teamID = teamData.id;
+            done();
+        });
+        client.getTeamByName(ADMIN.team);
+    });
+
+    test('return teams route', () => {
+        expect(client.teamRoute()).toEqual(`/users/me/teams/${teamID}`);
+    });
+
+    // sets `privateChannel` and `publicChannel` which is needed for some further tests
+    test('get all channels from current team for user', (done) => {
+        client.on('channelsLoaded', (channelData) => {
+            channelData.forEach((channel) => {
+                expect(channel).toMatchObject(CHANNEL.mock);
+            });
+            done();
+        });
+        client.loadChannels();
+    });
 });
