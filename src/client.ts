@@ -80,18 +80,18 @@ class Client extends EventEmitter {
 
     _pongTimeout: NodeJS.Timeout;
 
-    getAllUsers: () => any;
+    User: User;
 
     constructor(host: string, group: string, options: any) {
         super();
+
+        this.User = new User();
 
         this.host = host;
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
         this.messageMaxRunes = 4000;
         this.additionalHeaders = {};
-
-        this.getAllUsers = User.getAllUsers;
 
         this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {
@@ -117,7 +117,6 @@ class Client extends EventEmitter {
 
         this.self = null;
         this.channels = {};
-        this.users = {};
         this.teams = {};
         this.teamID = null;
 
@@ -217,7 +216,7 @@ class Client extends EventEmitter {
         return this._apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`, {}, this._onRevoke);
     }
 
-    createUser(user: User) {
+    createUser(user: IUser) {
         const uri = `${usersRoute}?iid=`;
         return this._apiCall('POST', uri, user, this._onCreateUser);
     }
@@ -330,17 +329,17 @@ class Client extends EventEmitter {
         return this.emit('error', data);
     }
 
-    _onLoadUsers(data: User[] | any, _headers: any, params: any) {
+    _onLoadUsers(data: IUser[] | any, _headers: any, params: any) {
         if (data && !data.error) {
-            data.forEach((user: User) => {
-                this.users[user.id] = user;
+            data.forEach((user: IUser) => {
+                this.User.users[user.id] = user;
             });
             this.logger.info(`Found ${Object.keys(data).length} profiles.`);
             this.emit('profilesLoaded', data);
             if ((Object.keys(data).length > 200) && (params.page != null)) {
                 return this.loadUsers(params.page + 1); // Trigger next page loading
             }
-            return this.users;
+            return this.User.users;
         }
         this.logger.error('Failed to load profiles from server.');
         return this.emit('error', { msg: 'failed to load profiles' });
@@ -348,7 +347,7 @@ class Client extends EventEmitter {
 
     _onLoadUser(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
-            this.users[data.id] = data;
+            this.User.users[data.id] = data;
             return this.emit('profilesLoaded', [data]);
         }
         return this.emit('error', { msg: 'failed to load profile' });
@@ -356,7 +355,7 @@ class Client extends EventEmitter {
 
     _onChannels(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
-            data.forEach((channel: Channel) => {
+            data.forEach((channel: IChannel) => {
                 this.channels[channel.id] = channel;
             });
             this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
@@ -774,15 +773,6 @@ class Client extends EventEmitter {
 
     getChannelByID(id: string): Record<string, any> {
         return this.channels[id];
-    }
-
-    getUserByID(id: string): Record<string, any> {
-        return this.users[id];
-    }
-
-    getUserByEmail(email: string): Record<string, any> {
-        return Object.values(this.users)
-            .find((user: any) => user.email === email);
     }
 
     customMessage(postData: any, channelID: string) {

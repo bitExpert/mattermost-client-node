@@ -89,7 +89,7 @@ export default (Client) => describe('users', () => {
         // `differentUser` gets set in 'get all available users'
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
         expect(differentUser).not.toBeNull();
-        const user = client.getUserByID(differentUser.id);
+        const user = client.User.getUserByID(differentUser.id);
         expect(user).toMatchObject(ALLUSERS.mock);
         done();
     });
@@ -98,14 +98,14 @@ export default (Client) => describe('users', () => {
         // `differentUser` gets set in 'get all available users'
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
         expect(differentUser).not.toBeNull();
-        const user = client.getUserByEmail(differentUser.email);
+        const user = client.User.getUserByEmail(differentUser.email);
         expect(user).toMatchObject(ALLUSERS.mock);
         done();
     });
 
     test('get all users from client', (done) => {
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
-        const usersData = client.getAllUsers();
+        const usersData = client.User.getAllUsers();
         Object.values(usersData).forEach((user) => {
             expect(user).toMatchObject(ALLUSERS.mock);
             if (user.username === USER.username) {

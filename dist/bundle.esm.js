@@ -46,11 +46,32 @@ var __assign = function() {
     return __assign.apply(this, arguments);
 };
 
-var User = {
-    getAllUsers: function () {
-        return this.users;
-    },
-};
+var User = (function () {
+    function User() {
+        this._users = {};
+    }
+    User.prototype.getUserByID = function (id) {
+        return this._users[id];
+    };
+    User.prototype.getUserByEmail = function (email) {
+        return Object.values(this._users)
+            .find(function (user) { return user.email === email; });
+    };
+    User.prototype.getAllUsers = function () {
+        return this._users;
+    };
+    Object.defineProperty(User.prototype, "users", {
+        get: function () {
+            return this._users;
+        },
+        set: function (value) {
+            this._users = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return User;
+}());
 
 var apiPrefix = '/api/v4';
 var usersRoute = '/users';
@@ -59,12 +80,12 @@ var Client = (function (_super) {
     __extends(Client, _super);
     function Client(host, group, options) {
         var _this = _super.call(this) || this;
+        _this.User = new User();
         _this.host = host;
         _this.group = group;
         _this.options = options || { wssPort: 443, httpPort: 80 };
         _this.messageMaxRunes = 4000;
         _this.additionalHeaders = {};
-        _this.getAllUsers = User.getAllUsers;
         _this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {
             _this.useTLS = options.useTLS;
@@ -85,7 +106,6 @@ var Client = (function (_super) {
         _this.token = null;
         _this.self = null;
         _this.channels = {};
-        _this.users = {};
         _this.teams = {};
         _this.teamID = null;
         _this.ws = null;
@@ -261,21 +281,21 @@ var Client = (function (_super) {
         var _this = this;
         if (data && !data.error) {
             data.forEach(function (user) {
-                _this.users[user.id] = user;
+                _this.User.users[user.id] = user;
             });
             this.logger.info("Found " + Object.keys(data).length + " profiles.");
             this.emit('profilesLoaded', data);
             if ((Object.keys(data).length > 200) && (params.page != null)) {
                 return this.loadUsers(params.page + 1);
             }
-            return this.users;
+            return this.User.users;
         }
         this.logger.error('Failed to load profiles from server.');
         return this.emit('error', { msg: 'failed to load profiles' });
     };
     Client.prototype._onLoadUser = function (data, _headers, _params) {
         if (data && !data.error) {
-            this.users[data.id] = data;
+            this.User.users[data.id] = data;
             return this.emit('profilesLoaded', [data]);
         }
         return this.emit('error', { msg: 'failed to load profile' });
@@ -651,13 +671,6 @@ var Client = (function (_super) {
     };
     Client.prototype.getChannelByID = function (id) {
         return this.channels[id];
-    };
-    Client.prototype.getUserByID = function (id) {
-        return this.users[id];
-    };
-    Client.prototype.getUserByEmail = function (email) {
-        return Object.values(this.users)
-            .find(function (user) { return user.email === email; });
     };
     Client.prototype.customMessage = function (postData, channelID) {
         var _this = this;

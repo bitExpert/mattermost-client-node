@@ -13,7 +13,8 @@
     "baseUrl": "./",
     "paths": {
       "*" : ["src/@types/*"]
-    }
+    },
+    "target": "es5"
   },
   "files": [
     "src/client.ts",
