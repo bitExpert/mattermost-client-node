@@ -20,7 +20,7 @@ module.exports = {
   settings: {
     'import/resolver': {
       'node': {
-        'extensions': ['.js', '.jsx', '.ts', '.tsx']
+        'extensions': ['.js', '.ts']
       }
     }
   },
@@ -42,4 +42,10 @@ module.exports = {
         }
      ]
   },
+  overrides: [
+    {
+        'files': ['tests/**/*.js'],
+        'rules': { '@typescript-eslint/explicit-function-return-type': 'off' }
+    }
+  ]
 };
