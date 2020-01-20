@@ -256,6 +256,11 @@ class Client extends EventEmitter {
         return this._apiCall('GET', uri, null, this._onLogin);
     }
 
+    /**
+     *
+     * @internal
+     * @event
+     */
     _onLogin(data: any, headers: any) {
         if (data) {
             if (!data.id) {
@@ -290,10 +295,18 @@ class Client extends EventEmitter {
         return `${protocol + this.host + wssPort + apiPrefix}/websocket`;
     }
 
+    /**
+     *
+     * @event
+     */
     _onRevoke(data: any) {
         return this.emit('sessionRevoked', data);
     }
 
+    /**
+     *
+     * @event
+     */
     _onCreateTeam(data: any) {
         if (!data.error) {
             this.logger.info('Creating team...');
@@ -303,6 +316,10 @@ class Client extends EventEmitter {
         return this.emit('error', data);
     }
 
+    /**
+     *
+     * @event
+     */
     _onCheckIfTeamExists(data: any) {
         if (!data.error) {
             this.logger.info('Checking if team exists...');
@@ -312,6 +329,10 @@ class Client extends EventEmitter {
         return this.emit('error', data);
     }
 
+    /**
+     *
+     * @event
+     */
     _onAddUserToTeam(data: any) {
         if (!data.error) {
             this.logger.info('Adding user to team...');
@@ -321,6 +342,10 @@ class Client extends EventEmitter {
         return this.emit('error', data);
     }
 
+    /**
+     *
+     * @event
+     */
     _onCreateUser(data: any) {
         if (data.id) {
             this.logger.info('Creating user...');
@@ -330,6 +355,10 @@ class Client extends EventEmitter {
         return this.emit('error', data);
     }
 
+    /**
+     *
+     * @event
+     */
     _onLoadUsers(data: User[] | any, _headers: any, params: any) {
         if (data && !data.error) {
             data.forEach((user: User) => {
@@ -346,6 +375,10 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to load profiles' });
     }
 
+    /**
+     *
+     * @event
+     */
     _onLoadUser(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.users[data.id] = data;
@@ -354,6 +387,10 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to load profile' });
     }
 
+    /**
+     *
+     * @event
+     */
     _onChannels(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             data.forEach((channel: Channel) => {
@@ -366,6 +403,10 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get channel list' });
     }
 
+    /**
+     *
+     * @event
+     */
     _onUsersOfChannel(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             Object.entries(data).forEach((channel: any) => {
@@ -378,6 +419,10 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get channel users' });
     }
 
+    /**
+     *
+     * @event
+     */
     _onMessages(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} messages.`);
@@ -387,6 +432,10 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get messages' });
     }
 
+    /**
+     *
+     * @event
+     */
     _onUnreadsForChannels(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} information about unreads.`);
@@ -396,6 +445,10 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get unreads for channels' });
     }
 
+    /**
+     *
+     * @event
+     */
     _onChannelLastViewed(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} for last reads.`);
@@ -405,6 +458,10 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get last reads for channel(s)' });
     }
 
+    /**
+     *
+     * @event
+     */
     _onMembersFromChannels(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} channels.`);
@@ -414,6 +471,10 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get all members from channels' });
     }
 
+    /**
+     *
+     * @event
+     */
     _onPreferences(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.preferences = data;
@@ -424,6 +485,10 @@ class Client extends EventEmitter {
         return this.reconnect();
     }
 
+    /**
+     *
+     * @event
+     */
     _onMe(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.me = data;
@@ -434,6 +499,10 @@ class Client extends EventEmitter {
         return this.reconnect();
     }
 
+    /**
+     *
+     * @event
+     */
     _onTeams(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.teams = data;
@@ -460,6 +529,10 @@ class Client extends EventEmitter {
         return this.reconnect();
     }
 
+    /**
+     *
+     * @event
+     */
     _onTeamsByName(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} channels.`);
@@ -1012,8 +1085,10 @@ class Client extends EventEmitter {
         );
     }
 
-    // Private functions
-    //
+    /**
+     *
+     * @internal
+     */
     _send(message: any): any {
         const messageExt = { ...message };
         if (!this.connected) {
@@ -1027,7 +1102,10 @@ class Client extends EventEmitter {
         return messageExt;
     }
 
-
+    /**
+     *
+     * @internal
+     */
     _apiCall(
         method: string,
         path: string,
@@ -1089,6 +1167,10 @@ class Client extends EventEmitter {
         });
     }
 
+    /**
+     *
+     * @internal
+     */
     _getApiUrl(path: string): string {
         const protocol = this.useTLS ? 'https://' : 'http://';
         const port = (this.options.httpPort != null) ? `:${this.options.httpPort}` : '';
