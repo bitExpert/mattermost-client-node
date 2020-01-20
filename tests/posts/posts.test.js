@@ -1,18 +1,30 @@
 /* eslint-disable no-undef */
-/*
-beforeEach(() => {
-});
+let client = null;
 
-afterEach(() => {
-});
+export default (Client) => describe('posts', () => {
+    beforeAll((done) => {
+        client = new Client(CONNECTION.host, ADMIN.team, {
+            autoReconnect: false,
+            useTLS: false,
+            httpPort: CONNECTION.httpPort,
+            wssPort: CONNECTION.wsPort,
+            logger: 'noop',
+        });
+        client.on('loggedIn', (userData) => {
+            currentUser = userData;
+            done();
+        });
+        client.login(ADMIN.email, ADMIN.password, null);
+    });
 
-beforeAll(() => {
-});
+    afterAll(() => {
+        client.disconnect();
+    });
+    /*
+    beforeEach((done) => {
+    });
 
-afterAll(() => {
-});
-*/
-
-export default (_Client) => describe('posts', () => {
-    //
+    afterEach(() => {
+    });
+    */
 });
