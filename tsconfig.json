@@ -21,6 +21,7 @@
     "src/api.ts",
     "src/channel.ts",
     "src/user.ts",
+    "src/team.ts",
     "src/interfaces/channel.ts",
     "src/interfaces/message.ts",
     "src/interfaces/team.ts",

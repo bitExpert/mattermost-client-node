@@ -59,7 +59,7 @@ export default (Client) => describe('users', () => {
             });
             done();
         });
-        client.getTeams();
+        client.Team.getTeams();
     });
 
     test('get team by name', (done) => {
@@ -67,7 +67,7 @@ export default (Client) => describe('users', () => {
             expect(teamData).toMatchObject(TEAM.mock);
             done();
         });
-        client.getTeamByName(ADMIN.team);
+        client.Team.getTeamByName(ADMIN.team);
     });
 
     // sets `differentUser` which is needed for some further tests

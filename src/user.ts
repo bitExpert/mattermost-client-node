@@ -38,7 +38,7 @@ class User {
         let uri = `/users?page=${page}&per_page=200`;
         // get only users of team (surveybot NOT included)
         if (byTeam) {
-            uri += `&in_team=${this.client.teamID}`;
+            uri += `&in_team=${this.client.Team.teamID}`;
         }
         this.client.logger.info(`Loading ${uri}`);
         return this.client.Api.apiCall('GET', uri, null, this._onLoadUsers, { page });
@@ -51,7 +51,7 @@ class User {
     }
 
     // @Todo tests
-    loadUsersFromChannel(channelId: string) {
+    loadUsersFromChannel(channelId: string): any {
         const uri = `/channels/${channelId}/members`;
         this.client.logger.info(`Loading ${uri}`);
         return this.client.Api.apiCall('GET', uri, null, this._onUsersOfChannel);

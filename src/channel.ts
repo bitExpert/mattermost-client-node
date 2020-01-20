@@ -28,7 +28,7 @@ class Channel {
      */
 
     loadChannels(): any {
-        const uri = `/users/me/teams/${this.client.teamID}/channels`;
+        const uri = `/users/me/teams/${this.client.Team.teamID}/channels`;
         this.client.logger.info(`Loading ${uri}`);
         return this.client.Api.apiCall('GET', uri, null, this._onChannels);
     }
@@ -63,7 +63,7 @@ class Channel {
     // iterate over this.Channel.channels and substract msg_count (result from this call)
     // from this.Channel.channels.total_msg_count
     loadMembersFromChannels(): any {
-        const uri = `/users/me/teams/${this.client.teamID}/channels/members`;
+        const uri = `/users/me/teams/${this.client.Team.teamID}/channels/members`;
         this.client.logger.info(`Loading ${uri}`);
         return this.client.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
     }
@@ -156,7 +156,7 @@ class Channel {
 
         return this.client.Api.apiCall(
             'POST',
-            `${this.client.teamRoute()}/channels/update_header`,
+            `${this.client.Team.teamRoute()}/channels/update_header`,
             postData,
             (_data: any, _headers: any) => {
                 this.client.logger.debug('Channel header updated.');
@@ -242,7 +242,7 @@ class Channel {
      */
 
     channelRoute(channelId: string): string {
-        return `${this.client.teamRoute()}/channels/${channelId}`;
+        return `${this.client.Team.teamRoute()}/channels/${channelId}`;
     }
 
     findChannelByName(name: string): string | null {

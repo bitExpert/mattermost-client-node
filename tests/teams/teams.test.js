@@ -36,7 +36,7 @@ export default (Client) => describe('teams', () => {
             });
             done();
         });
-        client.getTeams();
+        client.Team.getTeams();
     });
 
     test('get team by name', (done) => {
@@ -45,10 +45,10 @@ export default (Client) => describe('teams', () => {
             teamID = teamData.id;
             done();
         });
-        client.getTeamByName(ADMIN.team);
+        client.Team.getTeamByName(ADMIN.team);
     });
 
     test('return teams route', () => {
-        expect(client.teamRoute()).toEqual(`/users/me/teams/${teamID}`);
+        expect(client.Team.teamRoute()).toEqual(`/users/me/teams/${teamID}`);
     });
 });

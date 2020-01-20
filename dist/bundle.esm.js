@@ -71,7 +71,7 @@ var User = (function () {
         if (byTeam === void 0) { byTeam = true; }
         var uri = "/users?page=" + page + "&per_page=200";
         if (byTeam) {
-            uri += "&in_team=" + this.client.teamID;
+            uri += "&in_team=" + this.client.Team.teamID;
         }
         this.client.logger.info("Loading " + uri);
         return this.client.Api.apiCall('GET', uri, null, this._onLoadUsers, { page: page });
@@ -256,6 +256,121 @@ var Api = (function () {
     return Api;
 }());
 
+var Team = (function () {
+    function Team(client, usersRoute) {
+        this._teams = {};
+        this._teamID = null;
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    Team.prototype.initBindings = function () {
+        this._onTeams = this._onTeams.bind(this);
+        this._onTeamsByName = this._onTeamsByName.bind(this);
+        this._onCreateTeam = this._onCreateTeam.bind(this);
+        this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
+        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
+    };
+    Team.prototype.getTeams = function () {
+        var uri = this.usersRoute + "/me/teams";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onTeams);
+    };
+    Team.prototype.getTeamByName = function (teamName) {
+        var uri = "/teams/name/" + teamName;
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onTeamsByName);
+    };
+    Team.prototype.checkIfTeamExists = function (teamName) {
+        var uri = "/teams/name/" + teamName + "/exists";
+        return this.client.Api.apiCall('GET', uri, null, this._onCheckIfTeamExists);
+    };
+    Team.prototype.createTeam = function (name, display_name, type) {
+        if (type === void 0) { type = 'I'; }
+        var uri = '/teams';
+        return this.client.Api.apiCall('POST', uri, { name: name, display_name: display_name, type: type }, this._onCreateTeam);
+    };
+    Team.prototype.addUserToTeam = function (user_id, team_id) {
+        var postData = {
+            team_id: team_id,
+            user_id: user_id,
+        };
+        var uri = "/teams/" + team_id + "/members";
+        return this.client.Api.apiCall('POST', uri, postData, this._onAddUserToTeam);
+    };
+    Team.prototype._onTeams = function (data, _headers, _params) {
+        var _this = this;
+        if (data && !data.error) {
+            this._teams = data;
+            this.client.emit('teamsLoaded', data);
+            if (!data.length) {
+                return this._teams;
+            }
+            this.client.logger.info("Found " + Object.keys(this._teams).length + " teams.");
+            this._teams
+                .find(function (team) {
+                var isTeamFound = team.name.toLowerCase() === _this.client.group.toLowerCase();
+                _this.client.logger.debug("Testing " + team.name + " == " + _this.client.group);
+                if (isTeamFound) {
+                    _this._teamID = team.id;
+                    _this.client.logger.info("Found team! " + team.id);
+                }
+                return isTeamFound;
+            });
+            this.client.User.loadUsers();
+            return this.client.Channel.loadChannels();
+        }
+        this.client.logger.error('Failed to load Teams...');
+        return this.client.reconnect();
+    };
+    Team.prototype._onTeamsByName = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " channels.");
+            return this.client.emit('teamsByNameLoaded', data);
+        }
+        this.client.logger.error("Failed to get team by name from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get team by name' });
+    };
+    Team.prototype._onCreateTeam = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Creating team...');
+            return this.client.emit('teamCreated', data);
+        }
+        this.client.logger.error('Team creation failed', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Team.prototype._onAddUserToTeam = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Adding user to team...');
+            return this.client.emit('userAdded', data);
+        }
+        this.client.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Team.prototype._onCheckIfTeamExists = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Checking if team exists...');
+            return this.client.emit('teamChecked', data);
+        }
+        this.client.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Object.defineProperty(Team.prototype, "teamID", {
+        get: function () {
+            return this._teamID;
+        },
+        set: function (value) {
+            this._teamID = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Team.prototype.teamRoute = function () {
+        return this.usersRoute + "/me/teams/" + this.teamID;
+    };
+    return Team;
+}());
+
 var Channel = (function () {
     function Channel(client, usersRoute) {
         this._channels = {};
@@ -270,7 +385,7 @@ var Channel = (function () {
         this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
     };
     Channel.prototype.loadChannels = function () {
-        var uri = "/users/me/teams/" + this.client.teamID + "/channels";
+        var uri = "/users/me/teams/" + this.client.Team.teamID + "/channels";
         this.client.logger.info("Loading " + uri);
         return this.client.Api.apiCall('GET', uri, null, this._onChannels);
     };
@@ -295,7 +410,7 @@ var Channel = (function () {
         return this.client.Api.apiCall('GET', uri, null, this._onUnreadsForChannels);
     };
     Channel.prototype.loadMembersFromChannels = function () {
-        var uri = "/users/me/teams/" + this.client.teamID + "/channels/members";
+        var uri = "/users/me/teams/" + this.client.Team.teamID + "/channels/members";
         this.client.logger.info("Loading " + uri);
         return this.client.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
     };
@@ -345,7 +460,7 @@ var Channel = (function () {
             channel_id: channelID,
             channel_header: header,
         };
-        return this.client.Api.apiCall('POST', this.client.teamRoute() + "/channels/update_header", postData, function (_data, _headers) {
+        return this.client.Api.apiCall('POST', this.client.Team.teamRoute() + "/channels/update_header", postData, function (_data, _headers) {
             _this.client.logger.debug('Channel header updated.');
             return true;
         });
@@ -403,7 +518,7 @@ var Channel = (function () {
         configurable: true
     });
     Channel.prototype.channelRoute = function (channelId) {
-        return this.client.teamRoute() + "/channels/" + channelId;
+        return this.client.Team.teamRoute() + "/channels/" + channelId;
     };
     Channel.prototype.findChannelByName = function (name) {
         var _this = this;
@@ -449,8 +564,6 @@ var Client = (function (_super) {
         _this.hasAccessToken = false;
         _this.token = null;
         _this.self = null;
-        _this.teams = {};
-        _this.teamID = null;
         _this.ws = null;
         _this._messageID = 0;
         _this._pending = {};
@@ -497,16 +610,12 @@ var Client = (function (_super) {
         this.Api = new Api(this);
         this.Channel = new Channel(this, usersRoute);
         this.User = new User(this, usersRoute);
+        this.Team = new Team(this, usersRoute);
     };
     Client.prototype.initBindings = function () {
         this._onLogin = this._onLogin.bind(this);
-        this._onCreateTeam = this._onCreateTeam.bind(this);
-        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
-        this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
         this._onMessages = this._onMessages.bind(this);
-        this._onTeams = this._onTeams.bind(this);
-        this._onTeamsByName = this._onTeamsByName.bind(this);
     };
     Client.prototype.login = function (email, password, mfaToken) {
         this.hasAccessToken = false;
@@ -522,23 +631,6 @@ var Client = (function (_super) {
     };
     Client.prototype.revoke = function (userID) {
         return this.Api.apiCall('POST', usersRoute + "/" + userID + "/sessions/revoke", {}, this._onRevoke);
-    };
-    Client.prototype.createTeam = function (name, display_name, type) {
-        if (type === void 0) { type = 'I'; }
-        var uri = '/teams';
-        return this.Api.apiCall('POST', uri, { name: name, display_name: display_name, type: type }, this._onCreateTeam);
-    };
-    Client.prototype.checkIfTeamExists = function (teamName) {
-        var uri = "/teams/name/" + teamName + "/exists";
-        return this.Api.apiCall('GET', uri, null, this._onCheckIfTeamExists);
-    };
-    Client.prototype.addUserToTeam = function (user_id, team_id) {
-        var postData = {
-            team_id: team_id,
-            user_id: user_id,
-        };
-        var uri = "/teams/" + team_id + "/members";
-        return this.Api.apiCall('POST', uri, postData, this._onAddUserToTeam);
     };
     Client.prototype.tokenLogin = function (token) {
         this.token = token;
@@ -568,7 +660,7 @@ var Client = (function (_super) {
             this.emit('loggedIn', this.self);
             this.User.getMe();
             this.User.getPreferences();
-            return this.getTeams();
+            return this.Team.getTeams();
         }
         this.emit('error', data);
         this.authenticated = false;
@@ -583,30 +675,6 @@ var Client = (function (_super) {
     Client.prototype._onRevoke = function (data) {
         return this.emit('sessionRevoked', data);
     };
-    Client.prototype._onCreateTeam = function (data) {
-        if (!data.error) {
-            this.logger.info('Creating team...');
-            return this.emit('teamCreated', data);
-        }
-        this.logger.error('Team creation failed', JSON.stringify(data));
-        return this.emit('error', data);
-    };
-    Client.prototype._onCheckIfTeamExists = function (data) {
-        if (!data.error) {
-            this.logger.info('Checking if team exists...');
-            return this.emit('teamChecked', data);
-        }
-        this.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
-        return this.emit('error', data);
-    };
-    Client.prototype._onAddUserToTeam = function (data) {
-        if (!data.error) {
-            this.logger.info('Adding user to team...');
-            return this.emit('userAdded', data);
-        }
-        this.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
-        return this.emit('error', data);
-    };
     Client.prototype._onMessages = function (data, _headers, _params) {
         if (data && !data.error) {
             this.logger.info("Found " + Object.keys(data).length + " messages.");
@@ -614,49 +682,6 @@ var Client = (function (_super) {
         }
         this.logger.error("Failed to get messages from server: " + data.error);
         return this.emit('error', { msg: 'failed to get messages' });
-    };
-    Client.prototype._onTeams = function (data, _headers, _params) {
-        var _this = this;
-        if (data && !data.error) {
-            this.teams = data;
-            this.emit('teamsLoaded', data);
-            if (!data.length) {
-                return this.teams;
-            }
-            this.logger.info("Found " + Object.keys(this.teams).length + " teams.");
-            this.teams
-                .find(function (team) {
-                var isTeamFound = team.name.toLowerCase() === _this.group.toLowerCase();
-                _this.logger.debug("Testing " + team.name + " == " + _this.group);
-                if (isTeamFound) {
-                    _this.teamID = team.id;
-                    _this.logger.info("Found team! " + team.id);
-                }
-                return isTeamFound;
-            });
-            this.User.loadUsers();
-            return this.Channel.loadChannels();
-        }
-        this.logger.error('Failed to load Teams...');
-        return this.reconnect();
-    };
-    Client.prototype._onTeamsByName = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " channels.");
-            return this.emit('teamsByNameLoaded', data);
-        }
-        this.logger.error("Failed to get team by name from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get team by name' });
-    };
-    Client.prototype.getTeams = function () {
-        var uri = usersRoute + "/me/teams";
-        this.logger.info("Loading " + uri);
-        return this.Api.apiCall('GET', uri, null, this._onTeams);
-    };
-    Client.prototype.getTeamByName = function (teamName) {
-        var uri = "/teams/name/" + teamName;
-        this.logger.info("Loading " + uri);
-        return this.Api.apiCall('GET', uri, null, this._onTeamsByName);
     };
     Client.prototype.loadMessagesFromChannel = function (channelId, options) {
         if (options === void 0) { options = {}; }
@@ -943,9 +968,6 @@ var Client = (function (_super) {
             }
             return true;
         });
-    };
-    Client.prototype.teamRoute = function () {
-        return usersRoute + "/me/teams/" + this.teamID;
     };
     Client.prototype._send = function (message) {
         var messageExt = __assign({}, message);

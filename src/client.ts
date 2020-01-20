@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 import HttpsProxyAgent from 'https-proxy-agent';
 import User from './user';
 import Api from './api';
+import Team from './team';
 import Channel from './channel';
 
 const apiPrefix = '/api/v4';
@@ -35,10 +36,6 @@ class Client extends EventEmitter {
     token: string;
 
     self: any;
-
-    teams: any;
-
-    teamID: string;
 
     ws: any;
 
@@ -82,6 +79,8 @@ class Client extends EventEmitter {
 
     User: User;
 
+    Team: Team;
+
     constructor(host: string, group: string, options: any) {
         super();
 
@@ -114,8 +113,6 @@ class Client extends EventEmitter {
         this.token = null;
 
         this.self = null;
-        this.teams = {};
-        this.teamID = null;
 
         this.ws = null;
         this._messageID = 0;
@@ -174,19 +171,15 @@ class Client extends EventEmitter {
         this.Api = new Api(this);
         this.Channel = new Channel(this, usersRoute);
         this.User = new User(this, usersRoute);
+        this.Team = new Team(this, usersRoute);
     }
 
     initBindings() {
         // Binding because async calls galore
 
         this._onLogin = this._onLogin.bind(this);
-        this._onCreateTeam = this._onCreateTeam.bind(this);
-        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
-        this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
         this._onMessages = this._onMessages.bind(this);
-        this._onTeams = this._onTeams.bind(this);
-        this._onTeamsByName = this._onTeamsByName.bind(this);
     }
 
     login(email: string, password: string, mfaToken: string) {
@@ -211,31 +204,6 @@ class Client extends EventEmitter {
     // revoke a user session
     revoke(userID: string) {
         return this.Api.apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`, {}, this._onRevoke);
-    }
-
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    createTeam(name: string, display_name: string, type = 'I') {
-        const uri = '/teams';
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        return this.Api.apiCall('POST', uri, { name, display_name, type }, this._onCreateTeam);
-    }
-
-    checkIfTeamExists(teamName: string) {
-        const uri = `/teams/name/${teamName}/exists`;
-        return this.Api.apiCall('GET', uri, null, this._onCheckIfTeamExists);
-    }
-
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    addUserToTeam(user_id: string, team_id: string) {
-        const postData = {
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            team_id,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            user_id,
-        };
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        const uri = `/teams/${team_id}/members`;
-        return this.Api.apiCall('POST', uri, postData, this._onAddUserToTeam);
     }
 
     tokenLogin(token: string) {
@@ -268,7 +236,7 @@ class Client extends EventEmitter {
             this.emit('loggedIn', this.self);
             this.User.getMe();
             this.User.getPreferences();
-            return this.getTeams();
+            return this.Team.getTeams();
         }
         this.emit('error', data);
         this.authenticated = false;
@@ -286,33 +254,6 @@ class Client extends EventEmitter {
         return this.emit('sessionRevoked', data);
     }
 
-    _onCreateTeam(data: any) {
-        if (!data.error) {
-            this.logger.info('Creating team...');
-            return this.emit('teamCreated', data);
-        }
-        this.logger.error('Team creation failed', JSON.stringify(data));
-        return this.emit('error', data);
-    }
-
-    _onCheckIfTeamExists(data: any) {
-        if (!data.error) {
-            this.logger.info('Checking if team exists...');
-            return this.emit('teamChecked', data);
-        }
-        this.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
-        return this.emit('error', data);
-    }
-
-    _onAddUserToTeam(data: any) {
-        if (!data.error) {
-            this.logger.info('Adding user to team...');
-            return this.emit('userAdded', data);
-        }
-        this.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
-        return this.emit('error', data);
-    }
-
     _onMessages(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} messages.`);
@@ -320,53 +261,6 @@ class Client extends EventEmitter {
         }
         this.logger.error(`Failed to get messages from server: ${data.error}`);
         return this.emit('error', { msg: 'failed to get messages' });
-    }
-
-    _onTeams(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.teams = data;
-            this.emit('teamsLoaded', data);
-            // do not go further if user is not added to a team
-            if (!data.length) {
-                return this.teams;
-            }
-            this.logger.info(`Found ${Object.keys(this.teams).length} teams.`);
-            this.teams
-                .find((team: any) => {
-                    const isTeamFound = team.name.toLowerCase() === this.group.toLowerCase();
-                    this.logger.debug(`Testing ${team.name} == ${this.group}`);
-                    if (isTeamFound) {
-                        this.teamID = team.id;
-                        this.logger.info(`Found team! ${team.id}`);
-                    }
-                    return isTeamFound;
-                });
-            this.User.loadUsers();
-            return this.Channel.loadChannels();
-        }
-        this.logger.error('Failed to load Teams...');
-        return this.reconnect();
-    }
-
-    _onTeamsByName(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.logger.info(`Found ${Object.keys(data).length} channels.`);
-            return this.emit('teamsByNameLoaded', data);
-        }
-        this.logger.error(`Failed to get team by name from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get team by name' });
-    }
-
-    getTeams() {
-        const uri = `${usersRoute}/me/teams`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onTeams);
-    }
-
-    getTeamByName(teamName: string) {
-        const uri = `/teams/name/${teamName}`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onTeamsByName);
     }
 
     loadMessagesFromChannel(channelId: string, options: any = {}) {
@@ -497,7 +391,6 @@ class Client extends EventEmitter {
         }
         return false;
     }
-
 
     disconnect(): boolean {
         if (!this.connected) {
@@ -704,10 +597,6 @@ class Client extends EventEmitter {
 
             return true;
         });
-    }
-
-    teamRoute(): string {
-        return `${usersRoute}/me/teams/${this.teamID}`;
     }
 
     // Private functions
