@@ -1,11 +1,10 @@
-import request from 'request';
 import WebSocket from 'isomorphic-ws';
-import TextEncoding from 'text-encoding';
 import Log from 'log';
 import querystring from 'querystring';
 import { EventEmitter } from 'events';
 import HttpsProxyAgent from 'https-proxy-agent';
 import User from './user';
+import Api from './api';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
@@ -80,12 +79,12 @@ class Client extends EventEmitter {
 
     _pongTimeout: NodeJS.Timeout;
 
+    Api: Api;
+
     User: User;
 
     constructor(host: string, group: string, options: any) {
         super();
-
-        this.User = new User();
 
         this.host = host;
         this.group = group;
@@ -169,6 +168,24 @@ class Client extends EventEmitter {
             this.logger = Log;
         }
 
+        this.initModules();
+        this.initBindings();
+    }
+
+    initModules() {
+        this.User = new User();
+        this.Api = new Api(
+            this.tlsverify,
+            this.additionalHeaders,
+            this.logger,
+            this.httpProxy,
+            this.useTLS,
+            this.options,
+            this.host,
+        );
+    }
+
+    initBindings() {
         // Binding because async calls galore
         this._onLogin = this._onLogin.bind(this);
         this._onCreateTeam = this._onCreateTeam.bind(this);
@@ -198,7 +215,7 @@ class Client extends EventEmitter {
         this.password = password;
         this.mfaToken = mfaToken;
         this.logger.info('Logging in...');
-        return this._apiCall(
+        return this.Api.apiCall(
             'POST',
             `${usersRoute}/login`,
             {
@@ -213,24 +230,24 @@ class Client extends EventEmitter {
 
     // revoke a user session
     revoke(userID: string) {
-        return this._apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`, {}, this._onRevoke);
+        return this.Api.apiCall('POST', `${usersRoute}/${userID}/sessions/revoke`, {}, this._onRevoke);
     }
 
     createUser(user: IUser) {
         const uri = `${usersRoute}?iid=`;
-        return this._apiCall('POST', uri, user, this._onCreateUser);
+        return this.Api.apiCall('POST', uri, user, this._onCreateUser);
     }
 
     // eslint-disable-next-line @typescript-eslint/camelcase
     createTeam(name: string, display_name: string, type = 'I') {
         const uri = '/teams';
         // eslint-disable-next-line @typescript-eslint/camelcase
-        return this._apiCall('POST', uri, { name, display_name, type }, this._onCreateTeam);
+        return this.Api.apiCall('POST', uri, { name, display_name, type }, this._onCreateTeam);
     }
 
     checkIfTeamExists(teamName: string) {
         const uri = `/teams/name/${teamName}/exists`;
-        return this._apiCall('GET', uri, null, this._onCheckIfTeamExists);
+        return this.Api.apiCall('GET', uri, null, this._onCheckIfTeamExists);
     }
 
     // eslint-disable-next-line @typescript-eslint/camelcase
@@ -243,16 +260,17 @@ class Client extends EventEmitter {
         };
         // eslint-disable-next-line @typescript-eslint/camelcase
         const uri = `/teams/${team_id}/members`;
-        return this._apiCall('POST', uri, postData, this._onAddUserToTeam);
+        return this.Api.apiCall('POST', uri, postData, this._onAddUserToTeam);
     }
 
 
     tokenLogin(token: string) {
         this.token = token;
+        this.Api.token = token;
         this.hasAccessToken = true;
         this.logger.info('Logging in with personal access token...');
         const uri = `${usersRoute}/me`;
-        return this._apiCall('GET', uri, null, this._onLogin);
+        return this.Api.apiCall('GET', uri, null, this._onLogin);
     }
 
     _onLogin(data: any, headers: any) {
@@ -268,6 +286,7 @@ class Client extends EventEmitter {
             // Continue happy flow here
             if (!this.hasAccessToken) {
                 this.token = headers.token;
+                this.Api.token = headers.token;
             }
             this.socketUrl = this._getSocketUrl();
             this.logger.info(`Websocket URL: ${this.socketUrl}`);
@@ -479,25 +498,25 @@ class Client extends EventEmitter {
     getMe() {
         const uri = `${usersRoute}/me`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onMe);
+        return this.Api.apiCall('GET', uri, null, this._onMe);
     }
 
     getPreferences() {
         const uri = `${usersRoute}/me/preferences`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onPreferences);
+        return this.Api.apiCall('GET', uri, null, this._onPreferences);
     }
 
     getTeams() {
         const uri = `${usersRoute}/me/teams`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onTeams);
+        return this.Api.apiCall('GET', uri, null, this._onTeams);
     }
 
     getTeamByName(teamName: string) {
         const uri = `/teams/name/${teamName}`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onTeamsByName);
+        return this.Api.apiCall('GET', uri, null, this._onTeamsByName);
     }
 
     loadUsers(page = 0, byTeam = true) {
@@ -507,25 +526,25 @@ class Client extends EventEmitter {
             uri += `&in_team=${this.teamID}`;
         }
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onLoadUsers, { page });
+        return this.Api.apiCall('GET', uri, null, this._onLoadUsers, { page });
     }
 
     loadUser(userId: string) {
         const uri = `/users/${userId}`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onLoadUser, {});
+        return this.Api.apiCall('GET', uri, null, this._onLoadUser, {});
     }
 
     loadChannels() {
         const uri = `/users/me/teams/${this.teamID}/channels`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onChannels);
+        return this.Api.apiCall('GET', uri, null, this._onChannels);
     }
 
     loadUsersFromChannel(channelId: string) {
         const uri = `/channels/${channelId}/members`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onUsersOfChannel);
+        return this.Api.apiCall('GET', uri, null, this._onUsersOfChannel);
     }
 
     loadMessagesFromChannel(channelId: string, options: any = {}) {
@@ -549,7 +568,7 @@ class Client extends EventEmitter {
         }
         uri += `?${querystring.stringify(params)}`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, params, this._onMessages);
+        return this.Api.apiCall('GET', uri, params, this._onMessages);
     }
 
     // to mark messages as read (e.g. after loading messages of channel)
@@ -563,13 +582,13 @@ class Client extends EventEmitter {
         };
         const uri = '/channels/members/me/view';
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('POST', uri, postData, this._onChannelLastViewed);
+        return this.Api.apiCall('POST', uri, postData, this._onChannelLastViewed);
     }
 
     loadUnreadsForChannels() {
         const uri = '/users/me/teams/unread';
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onUnreadsForChannels);
+        return this.Api.apiCall('GET', uri, null, this._onUnreadsForChannels);
     }
 
 
@@ -579,7 +598,7 @@ class Client extends EventEmitter {
     loadMembersFromChannels() {
         const uri = `/users/me/teams/${this.teamID}/channels/members`;
         this.logger.info(`Loading ${uri}`);
-        return this._apiCall('GET', uri, null, this._onMembersFromChannels);
+        return this.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
     }
 
     connect() {
@@ -784,7 +803,7 @@ class Client extends EventEmitter {
         }
         // eslint-disable-next-line @typescript-eslint/camelcase
         postDataExt.channel_id = channelID;
-        return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
+        return this.Api.apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
             this.logger.debug('Posted custom message.');
             if ((chunks != null ? chunks.length : undefined) > 0) {
                 this.logger.debug(`Recursively posting remainder of customMessage: (${chunks.length})`);
@@ -802,7 +821,7 @@ class Client extends EventEmitter {
             url,
             dialog,
         };
-        return this._apiCall(
+        return this.Api.apiCall(
             'POST',
             '/actions/dialogs/open',
             postData,
@@ -820,7 +839,7 @@ class Client extends EventEmitter {
                 message: msg,
             };
         }
-        return this._apiCall('PUT', `/posts/${postId}`, postData, (_data: any, _headers: any) => {
+        return this.Api.apiCall('PUT', `/posts/${postId}`, postData, (_data: any, _headers: any) => {
             this.logger.debug('Edited post');
         });
     }
@@ -832,7 +851,7 @@ class Client extends EventEmitter {
             files: file,
         };
 
-        return this._apiCall(
+        return this.Api.apiCall(
             'POST',
             '/files',
             formData,
@@ -856,14 +875,14 @@ class Client extends EventEmitter {
             // eslint-disable-next-line @typescript-eslint/camelcase
             create_at: 0,
         };
-        return this._apiCall('POST', '/reactions', postData, (_data: any, _headers: any) => {
+        return this.Api.apiCall('POST', '/reactions', postData, (_data: any, _headers: any) => {
             this.logger.debug('Created reaction');
         });
     }
 
     unreact(messageID: string, emoji: string) {
         const uri = `/users/me/posts/${messageID}/reactions/${emoji}`;
-        return this._apiCall('DELETE', uri, [], (_data: any, _headers: any) => {
+        return this.Api.apiCall('DELETE', uri, [], (_data: any, _headers: any) => {
             this.logger.debug('Deleted reaction');
         });
     }
@@ -871,7 +890,7 @@ class Client extends EventEmitter {
     // type "D"
     createDirectChannel(userID: string, callback: any) {
         const postData = [userID, this.self.id];
-        return this._apiCall(
+        return this.Api.apiCall(
             'POST',
             '/channels/direct',
             postData,
@@ -884,7 +903,7 @@ class Client extends EventEmitter {
 
     // type "G"
     createGroupChannel(userIDs: string, callback: any) {
-        return this._apiCall(
+        return this.Api.apiCall(
             'POST',
             '/channels/group',
             userIDs,
@@ -897,7 +916,7 @@ class Client extends EventEmitter {
 
     // type "P"
     createPrivateChannel(privateChannel: any, callback: any) {
-        return this._apiCall(
+        return this.Api.apiCall(
             'POST',
             '/channels',
             privateChannel,
@@ -910,7 +929,7 @@ class Client extends EventEmitter {
 
     addUserToChannel(privateChannel: any, callback: any) {
         const uri = `/channels/${privateChannel.channel_id}/members`;
-        return this._apiCall(
+        return this.Api.apiCall(
             'POST',
             uri,
             privateChannel,
@@ -969,7 +988,7 @@ class Client extends EventEmitter {
         const chunks = this._chunkMessage(postData.message);
         postData.message = chunks.shift();
 
-        return this._apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
+        return this.Api.apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
             this.logger.debug('Posted message.');
 
             if ((chunks != null ? chunks.length : undefined) > 0) {
@@ -991,7 +1010,7 @@ class Client extends EventEmitter {
             channel_header: header,
         };
 
-        return this._apiCall(
+        return this.Api.apiCall(
             'POST',
             `${this.teamRoute()}/channels/update_header`,
             postData,
@@ -1003,7 +1022,6 @@ class Client extends EventEmitter {
     }
 
     // Private functions
-    //
     _send(message: any): any {
         const messageExt = { ...message };
         if (!this.connected) {
@@ -1015,74 +1033,6 @@ class Client extends EventEmitter {
         this._pending[messageExt.id] = messageExt;
         this.ws.send(JSON.stringify(messageExt));
         return messageExt;
-    }
-
-
-    _apiCall(
-        method: string,
-        path: string,
-        params: any,
-        callback: any,
-        callbackParams: any = {},
-        isForm = false,
-    ) {
-        let postData = '';
-        if (params != null) { postData = JSON.stringify(params); }
-        const options: any = {
-            uri: this._getApiUrl(path),
-            method,
-            json: params,
-            rejectUnauthorized: this.tlsverify,
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        };
-
-        if (this.additionalHeaders) {
-            options.headers = Object.assign(options.headers, { ...this.additionalHeaders });
-        }
-
-        if (this.token) { options.headers.Authorization = `BEARER ${this.token}`; }
-        if (this.httpProxy) { options.proxy = this.httpProxy; }
-
-        if (isForm) {
-            options.headers['Content-Type'] = 'multipart/form-data';
-            delete options.headers['Content-Length'];
-            delete options.json;
-            options.formData = params;
-        }
-
-        this.logger.debug(`${method} ${path}`);
-        this.logger.info(`api url:${options.uri}`);
-
-        return request(options, (error: any, res: any, value: any) => {
-            if (error) {
-                if (callback) {
-                    return callback({ id: null, error: error.errno }, {}, callbackParams);
-                }
-            } else if (callback) {
-                if ((res.statusCode === 200) || (res.statusCode === 201)) {
-                    const safeValue = typeof value === 'string'
-                        ? JSON.parse(value)
-                        : value;
-
-                    return callback(safeValue, res.headers, callbackParams);
-                }
-                return callback({
-                    id: null,
-                    error: `API response: ${res.statusCode} ${JSON.stringify(value)}`,
-                }, res.headers, callbackParams);
-            }
-            return false;
-        });
-    }
-
-    _getApiUrl(path: string): string {
-        const protocol = this.useTLS ? 'https://' : 'http://';
-        const port = (this.options.httpPort != null) ? `:${this.options.httpPort}` : '';
-        return protocol + this.host + port + apiPrefix + path;
     }
 }
 
