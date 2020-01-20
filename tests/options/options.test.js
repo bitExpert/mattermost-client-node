@@ -1,7 +1,7 @@
 /* eslint-disable no-undef */
 let client = null;
 
-export default (Client) => describe('users', () => {
+export default (Client) => describe('options', () => {
     /*
     beforeAll(() => {
     });
