@@ -139,12 +139,12 @@ export default (Client) => describe('users', () => {
             });
             done();
         });
-        client.loadChannels();
+        client.Channel.loadChannels();
     });
 
     test('get all channels from client', (done) => {
         // only available once `_onChannels` has been called once (via `loadChannels`)
-        const channelData = client.getAllChannels();
+        const channelData = client.Channel.getAllChannels();
         Object.keys(channelData).forEach((channelId) => {
             expect(channelData[channelId]).toMatchObject(CHANNEL.mock);
         });
@@ -155,8 +155,8 @@ export default (Client) => describe('users', () => {
         // only available once `_onChannels` has been called once (via `loadChannels`)
         // `privateChannel` and `publicChannel` get set in
         // 'get all channels from current team for user'
-        expect(client.getChannelByID(privateChannel.id)).toMatchObject(CHANNEL.mock);
-        expect(client.getChannelByID(publicChannel.id)).toMatchObject(CHANNEL.mock);
+        expect(client.Channel.getChannelByID(privateChannel.id)).toMatchObject(CHANNEL.mock);
+        expect(client.Channel.getChannelByID(publicChannel.id)).toMatchObject(CHANNEL.mock);
         done();
     });
 });

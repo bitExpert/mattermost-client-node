@@ -51,15 +51,4 @@ export default (Client) => describe('teams', () => {
     test('return teams route', () => {
         expect(client.teamRoute()).toEqual(`/users/me/teams/${teamID}`);
     });
-
-    // sets `privateChannel` and `publicChannel` which is needed for some further tests
-    test('get all channels from current team for user', (done) => {
-        client.on('channelsLoaded', (channelData) => {
-            channelData.forEach((channel) => {
-                expect(channel).toMatchObject(CHANNEL.mock);
-            });
-            done();
-        });
-        client.loadChannels();
-    });
 });

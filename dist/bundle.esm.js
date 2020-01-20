@@ -59,6 +59,7 @@ var User = (function () {
         this._onLoadUser = this._onLoadUser.bind(this);
         this._onCreateUser = this._onCreateUser.bind(this);
         this._onPreferences = this._onPreferences.bind(this);
+        this._onUsersOfChannel = this._onUsersOfChannel.bind(this);
     };
     User.prototype.getMe = function () {
         var uri = this.usersRoute + "/me";
@@ -79,6 +80,11 @@ var User = (function () {
         var uri = "/users/" + userId;
         this.client.logger.info("Loading " + uri);
         return this.client.Api.apiCall('GET', uri, null, this._onLoadUser, {});
+    };
+    User.prototype.loadUsersFromChannel = function (channelId) {
+        var uri = "/channels/" + channelId + "/members";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onUsersOfChannel);
     };
     User.prototype.getPreferences = function () {
         var uri = this.usersRoute + "/me/preferences";
@@ -138,6 +144,18 @@ var User = (function () {
         }
         this.client.logger.error('User creation failed', JSON.stringify(data));
         return this.client.emit('error', data);
+    };
+    User.prototype._onUsersOfChannel = function (data, _headers, _params) {
+        var _this = this;
+        if (data && !data.error) {
+            Object.entries(data).forEach(function (channel) {
+                _this.client.Channel.channels[channel.id] = channel;
+            });
+            this.client.logger.info("Found " + Object.keys(data).length + " users.");
+            return this.client.emit('usersOfChannelLoaded', data);
+        }
+        this.client.logger.error("Failed to get channel users from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get channel users' });
     };
     User.prototype._onPreferences = function (data, _headers, _params) {
         if (data && !data.error) {
@@ -238,6 +256,168 @@ var Api = (function () {
     return Api;
 }());
 
+var Channel = (function () {
+    function Channel(client, usersRoute) {
+        this._channels = {};
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    Channel.prototype.initBindings = function () {
+        this._onChannels = this._onChannels.bind(this);
+        this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
+        this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
+        this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
+    };
+    Channel.prototype.loadChannels = function () {
+        var uri = "/users/me/teams/" + this.client.teamID + "/channels";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onChannels);
+    };
+    Channel.prototype.getUserDirectMessageChannel = function (userID, callback) {
+        var channel = this.client.self.id + "__" + userID;
+        channel = this.findChannelByName(channel);
+        if (!channel) {
+            channel = userID + "__" + this.client.self.id;
+            channel = this.findChannelByName(channel);
+        }
+        if (channel) {
+            if (callback != null) {
+                callback(channel);
+            }
+            return;
+        }
+        this.createDirectChannel(userID, callback);
+    };
+    Channel.prototype.loadUnreadsForChannels = function () {
+        var uri = '/users/me/teams/unread';
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onUnreadsForChannels);
+    };
+    Channel.prototype.loadMembersFromChannels = function () {
+        var uri = "/users/me/teams/" + this.client.teamID + "/channels/members";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
+    };
+    Channel.prototype.loadChannelLastViewed = function (channelId, prevChannelId) {
+        if (prevChannelId === void 0) { prevChannelId = null; }
+        var postData = {
+            channel_id: channelId,
+            prev_channel_id: prevChannelId,
+        };
+        var uri = '/channels/members/me/view';
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('POST', uri, postData, this._onChannelLastViewed);
+    };
+    Channel.prototype.createDirectChannel = function (userID, callback) {
+        var _this = this;
+        var postData = [userID, this.client.self.id];
+        return this.client.Api.apiCall('POST', '/channels/direct', postData, function (data, _headers) {
+            _this.client.logger.info('Created Direct Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.createGroupChannel = function (userIDs, callback) {
+        var _this = this;
+        return this.client.Api.apiCall('POST', '/channels/group', userIDs, function (data, _headers) {
+            _this.client.logger.info('Created Group Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.createPrivateChannel = function (privateChannel, callback) {
+        var _this = this;
+        return this.client.Api.apiCall('POST', '/channels', privateChannel, function (data, _headers) {
+            _this.client.logger.info('Created Private Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.addUserToChannel = function (privateChannel, callback) {
+        var _this = this;
+        var uri = "/channels/" + privateChannel.channel_id + "/members";
+        return this.client.Api.apiCall('POST', uri, privateChannel, function (data, _headers) {
+            _this.client.logger.info("Added User to Channel " + privateChannel.channel_id);
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.setChannelHeader = function (channelID, header) {
+        var _this = this;
+        var postData = {
+            channel_id: channelID,
+            channel_header: header,
+        };
+        return this.client.Api.apiCall('POST', this.client.teamRoute() + "/channels/update_header", postData, function (_data, _headers) {
+            _this.client.logger.debug('Channel header updated.');
+            return true;
+        });
+    };
+    Channel.prototype.getAllChannels = function () {
+        return this._channels;
+    };
+    Channel.prototype.getChannelByID = function (id) {
+        return this._channels[id];
+    };
+    Channel.prototype._onChannels = function (data, _headers, _params) {
+        var _this = this;
+        if (data && !data.error) {
+            data.forEach(function (channel) {
+                _this._channels[channel.id] = channel;
+            });
+            this.client.logger.info("Found " + Object.keys(data).length + " subscribed channels.");
+            return this.client.emit('channelsLoaded', data);
+        }
+        this.client.logger.error("Failed to get subscribed channels list from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get channel list' });
+    };
+    Channel.prototype._onUnreadsForChannels = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " information about unreads.");
+            return this.client.emit('channelsUnreadsLoaded', data);
+        }
+        this.client.logger.error("Failed to get unreads of channels from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get unreads for channels' });
+    };
+    Channel.prototype._onMembersFromChannels = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " channels.");
+            return this.client.emit('membersFromChannelsLoaded', data);
+        }
+        this.client.logger.error("Failed to get messages from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get all members from channels' });
+    };
+    Channel.prototype._onChannelLastViewed = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " for last reads.");
+            return this.client.emit('channelLastViewedLoaded', data);
+        }
+        this.client.logger.error("Failed to get last reads of channel(s) from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get last reads for channel(s)' });
+    };
+    Object.defineProperty(Channel.prototype, "channels", {
+        get: function () {
+            return this._channels;
+        },
+        set: function (value) {
+            this._channels = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Channel.prototype.channelRoute = function (channelId) {
+        return this.client.teamRoute() + "/channels/" + channelId;
+    };
+    Channel.prototype.findChannelByName = function (name) {
+        var _this = this;
+        var foundChannel = Object.keys(this._channels)
+            .find(function (channel) {
+            var channelName = _this._channels[channel].name;
+            var channelDisplayName = _this._channels[channel].display_name;
+            return channelName === name || channelDisplayName === name;
+        });
+        return foundChannel || null;
+    };
+    return Channel;
+}());
+
 var apiPrefix$1 = '/api/v4';
 var usersRoute = '/users';
 var defaultPingInterval = 60000;
@@ -269,7 +449,6 @@ var Client = (function (_super) {
         _this.hasAccessToken = false;
         _this.token = null;
         _this.self = null;
-        _this.channels = {};
         _this.teams = {};
         _this.teamID = null;
         _this.ws = null;
@@ -316,6 +495,7 @@ var Client = (function (_super) {
     }
     Client.prototype.initModules = function () {
         this.Api = new Api(this);
+        this.Channel = new Channel(this, usersRoute);
         this.User = new User(this, usersRoute);
     };
     Client.prototype.initBindings = function () {
@@ -324,14 +504,9 @@ var Client = (function (_super) {
         this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
         this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
-        this._onChannels = this._onChannels.bind(this);
-        this._onUsersOfChannel = this._onUsersOfChannel.bind(this);
         this._onMessages = this._onMessages.bind(this);
         this._onTeams = this._onTeams.bind(this);
         this._onTeamsByName = this._onTeamsByName.bind(this);
-        this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
-        this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
-        this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
     };
     Client.prototype.login = function (email, password, mfaToken) {
         this.hasAccessToken = false;
@@ -432,30 +607,6 @@ var Client = (function (_super) {
         this.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
         return this.emit('error', data);
     };
-    Client.prototype._onChannels = function (data, _headers, _params) {
-        var _this = this;
-        if (data && !data.error) {
-            data.forEach(function (channel) {
-                _this.channels[channel.id] = channel;
-            });
-            this.logger.info("Found " + Object.keys(data).length + " subscribed channels.");
-            return this.emit('channelsLoaded', data);
-        }
-        this.logger.error("Failed to get subscribed channels list from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get channel list' });
-    };
-    Client.prototype._onUsersOfChannel = function (data, _headers, _params) {
-        var _this = this;
-        if (data && !data.error) {
-            Object.entries(data).forEach(function (channel) {
-                _this.channels[channel.id] = channel;
-            });
-            this.logger.info("Found " + Object.keys(data).length + " users.");
-            return this.emit('usersOfChannelLoaded', data);
-        }
-        this.logger.error("Failed to get channel users from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get channel users' });
-    };
     Client.prototype._onMessages = function (data, _headers, _params) {
         if (data && !data.error) {
             this.logger.info("Found " + Object.keys(data).length + " messages.");
@@ -463,30 +614,6 @@ var Client = (function (_super) {
         }
         this.logger.error("Failed to get messages from server: " + data.error);
         return this.emit('error', { msg: 'failed to get messages' });
-    };
-    Client.prototype._onUnreadsForChannels = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " information about unreads.");
-            return this.emit('channelsUnreadsLoaded', data);
-        }
-        this.logger.error("Failed to get unreads of channels from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get unreads for channels' });
-    };
-    Client.prototype._onChannelLastViewed = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " for last reads.");
-            return this.emit('channelLastViewedLoaded', data);
-        }
-        this.logger.error("Failed to get last reads of channel(s) from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get last reads for channel(s)' });
-    };
-    Client.prototype._onMembersFromChannels = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " channels.");
-            return this.emit('membersFromChannelsLoaded', data);
-        }
-        this.logger.error("Failed to get messages from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get all members from channels' });
     };
     Client.prototype._onTeams = function (data, _headers, _params) {
         var _this = this;
@@ -508,7 +635,7 @@ var Client = (function (_super) {
                 return isTeamFound;
             });
             this.User.loadUsers();
-            return this.loadChannels();
+            return this.Channel.loadChannels();
         }
         this.logger.error('Failed to load Teams...');
         return this.reconnect();
@@ -521,12 +648,6 @@ var Client = (function (_super) {
         this.logger.error("Failed to get team by name from server: " + data.error);
         return this.emit('error', { msg: 'failed to get team by name' });
     };
-    Client.prototype.channelRoute = function (channelId) {
-        return this.teamRoute() + "/channels/" + channelId;
-    };
-    Client.prototype.teamRoute = function () {
-        return usersRoute + "/me/teams/" + this.teamID;
-    };
     Client.prototype.getTeams = function () {
         var uri = usersRoute + "/me/teams";
         this.logger.info("Loading " + uri);
@@ -536,16 +657,6 @@ var Client = (function (_super) {
         var uri = "/teams/name/" + teamName;
         this.logger.info("Loading " + uri);
         return this.Api.apiCall('GET', uri, null, this._onTeamsByName);
-    };
-    Client.prototype.loadChannels = function () {
-        var uri = "/users/me/teams/" + this.teamID + "/channels";
-        this.logger.info("Loading " + uri);
-        return this.Api.apiCall('GET', uri, null, this._onChannels);
-    };
-    Client.prototype.loadUsersFromChannel = function (channelId) {
-        var uri = "/channels/" + channelId + "/members";
-        this.logger.info("Loading " + uri);
-        return this.Api.apiCall('GET', uri, null, this._onUsersOfChannel);
     };
     Client.prototype.loadMessagesFromChannel = function (channelId, options) {
         if (options === void 0) { options = {}; }
@@ -568,26 +679,6 @@ var Client = (function (_super) {
         uri += "?" + querystring.stringify(params);
         this.logger.info("Loading " + uri);
         return this.Api.apiCall('GET', uri, params, this._onMessages);
-    };
-    Client.prototype.loadChannelLastViewed = function (channelId, prevChannelId) {
-        if (prevChannelId === void 0) { prevChannelId = null; }
-        var postData = {
-            channel_id: channelId,
-            prev_channel_id: prevChannelId,
-        };
-        var uri = '/channels/members/me/view';
-        this.logger.info("Loading " + uri);
-        return this.Api.apiCall('POST', uri, postData, this._onChannelLastViewed);
-    };
-    Client.prototype.loadUnreadsForChannels = function () {
-        var uri = '/users/me/teams/unread';
-        this.logger.info("Loading " + uri);
-        return this.Api.apiCall('GET', uri, null, this._onUnreadsForChannels);
-    };
-    Client.prototype.loadMembersFromChannels = function () {
-        var uri = "/users/me/teams/" + this.teamID + "/channels/members";
-        this.logger.info("Loading " + uri);
-        return this.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
     };
     Client.prototype.connect = function () {
         var _this = this;
@@ -740,27 +831,6 @@ var Client = (function (_super) {
                 return this.logger.debug(message);
         }
     };
-    Client.prototype.getUserDirectMessageChannel = function (userID, callback) {
-        var channel = this.self.id + "__" + userID;
-        channel = this.findChannelByName(channel);
-        if (!channel) {
-            channel = userID + "__" + this.self.id;
-            channel = this.findChannelByName(channel);
-        }
-        if (channel) {
-            if (callback != null) {
-                callback(channel);
-            }
-            return;
-        }
-        this.createDirectChannel(userID, callback);
-    };
-    Client.prototype.getAllChannels = function () {
-        return this.channels;
-    };
-    Client.prototype.getChannelByID = function (id) {
-        return this.channels[id];
-    };
     Client.prototype.customMessage = function (postData, channelID) {
         var _this = this;
         var chunks;
@@ -834,46 +904,6 @@ var Client = (function (_super) {
             _this.logger.debug('Deleted reaction');
         });
     };
-    Client.prototype.createDirectChannel = function (userID, callback) {
-        var _this = this;
-        var postData = [userID, this.self.id];
-        return this.Api.apiCall('POST', '/channels/direct', postData, function (data, _headers) {
-            _this.logger.info('Created Direct Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Client.prototype.createGroupChannel = function (userIDs, callback) {
-        var _this = this;
-        return this.Api.apiCall('POST', '/channels/group', userIDs, function (data, _headers) {
-            _this.logger.info('Created Group Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Client.prototype.createPrivateChannel = function (privateChannel, callback) {
-        var _this = this;
-        return this.Api.apiCall('POST', '/channels', privateChannel, function (data, _headers) {
-            _this.logger.info('Created Private Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Client.prototype.addUserToChannel = function (privateChannel, callback) {
-        var _this = this;
-        var uri = "/channels/" + privateChannel.channel_id + "/members";
-        return this.Api.apiCall('POST', uri, privateChannel, function (data, _headers) {
-            _this.logger.info("Added User to Channel" + privateChannel.channel_id);
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Client.prototype.findChannelByName = function (name) {
-        var _this = this;
-        var foundChannel = Object.keys(this.channels)
-            .find(function (channel) {
-            var channelName = _this.channels[channel].name;
-            var channelDisplayName = _this.channels[channel].display_name;
-            return channelName === name || channelDisplayName === name;
-        });
-        return foundChannel || null;
-    };
     Client.prototype._chunkMessage = function (msg) {
         if (!msg) {
             return [''];
@@ -914,16 +944,8 @@ var Client = (function (_super) {
             return true;
         });
     };
-    Client.prototype.setChannelHeader = function (channelID, header) {
-        var _this = this;
-        var postData = {
-            channel_id: channelID,
-            channel_header: header,
-        };
-        return this.Api.apiCall('POST', this.teamRoute() + "/channels/update_header", postData, function (_data, _headers) {
-            _this.logger.debug('Channel header updated.');
-            return true;
-        });
+    Client.prototype.teamRoute = function () {
+        return usersRoute + "/me/teams/" + this.teamID;
     };
     Client.prototype._send = function (message) {
         var messageExt = __assign({}, message);

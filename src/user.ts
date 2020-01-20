@@ -21,6 +21,7 @@ class User {
         this._onLoadUser = this._onLoadUser.bind(this);
         this._onCreateUser = this._onCreateUser.bind(this);
         this._onPreferences = this._onPreferences.bind(this);
+        this._onUsersOfChannel = this._onUsersOfChannel.bind(this);
     }
 
     /**
@@ -49,7 +50,14 @@ class User {
         return this.client.Api.apiCall('GET', uri, null, this._onLoadUser, {});
     }
 
-    getPreferences() {
+    // @Todo tests
+    loadUsersFromChannel(channelId: string) {
+        const uri = `/channels/${channelId}/members`;
+        this.client.logger.info(`Loading ${uri}`);
+        return this.client.Api.apiCall('GET', uri, null, this._onUsersOfChannel);
+    }
+
+    getPreferences(): any {
         const uri = `${this.usersRoute}/me/preferences`;
         this.client.logger.info(`Loading ${uri}`);
         return this.client.Api.apiCall('GET', uri, null, this._onPreferences);
@@ -60,7 +68,7 @@ class User {
      * create user(s)
      */
     // difficult to test as there is no delete but only a deactivate function for users
-    createUser(user: IUser) {
+    createUser(user: IUser): any {
         const uri = `${this.usersRoute}?iid=`;
         return this.client.Api.apiCall('POST', uri, user, this._onCreateUser);
     }
@@ -129,6 +137,18 @@ class User {
         }
         this.client.logger.error('User creation failed', JSON.stringify(data));
         return this.client.emit('error', data);
+    }
+
+    private _onUsersOfChannel(data: any, _headers: any, _params: any): any {
+        if (data && !data.error) {
+            Object.entries(data).forEach((channel: any) => {
+                this.client.Channel.channels[channel.id] = channel;
+            });
+            this.client.logger.info(`Found ${Object.keys(data).length} users.`);
+            return this.client.emit('usersOfChannelLoaded', data);
+        }
+        this.client.logger.error(`Failed to get channel users from server: ${data.error}`);
+        return this.client.emit('error', { msg: 'failed to get channel users' });
     }
 
     private _onPreferences(data: any, _headers: any, _params: any): any {

@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 import HttpsProxyAgent from 'https-proxy-agent';
 import User from './user';
 import Api from './api';
+import Channel from './channel';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
@@ -34,8 +35,6 @@ class Client extends EventEmitter {
     token: string;
 
     self: any;
-
-    channels: any;
 
     teams: any;
 
@@ -79,6 +78,8 @@ class Client extends EventEmitter {
 
     Api: Api;
 
+    Channel: Channel;
+
     User: User;
 
     constructor(host: string, group: string, options: any) {
@@ -113,7 +114,6 @@ class Client extends EventEmitter {
         this.token = null;
 
         this.self = null;
-        this.channels = {};
         this.teams = {};
         this.teamID = null;
 
@@ -172,6 +172,7 @@ class Client extends EventEmitter {
 
     initModules() {
         this.Api = new Api(this);
+        this.Channel = new Channel(this, usersRoute);
         this.User = new User(this, usersRoute);
     }
 
@@ -183,14 +184,9 @@ class Client extends EventEmitter {
         this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
         this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
-        this._onChannels = this._onChannels.bind(this);
-        this._onUsersOfChannel = this._onUsersOfChannel.bind(this);
         this._onMessages = this._onMessages.bind(this);
         this._onTeams = this._onTeams.bind(this);
         this._onTeamsByName = this._onTeamsByName.bind(this);
-        this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
-        this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
-        this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
     }
 
     login(email: string, password: string, mfaToken: string) {
@@ -317,30 +313,6 @@ class Client extends EventEmitter {
         return this.emit('error', data);
     }
 
-    _onChannels(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            data.forEach((channel: IChannel) => {
-                this.channels[channel.id] = channel;
-            });
-            this.logger.info(`Found ${Object.keys(data).length} subscribed channels.`);
-            return this.emit('channelsLoaded', data);
-        }
-        this.logger.error(`Failed to get subscribed channels list from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get channel list' });
-    }
-
-    _onUsersOfChannel(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            Object.entries(data).forEach((channel: any) => {
-                this.channels[channel.id] = channel;
-            });
-            this.logger.info(`Found ${Object.keys(data).length} users.`);
-            return this.emit('usersOfChannelLoaded', data);
-        }
-        this.logger.error(`Failed to get channel users from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get channel users' });
-    }
-
     _onMessages(data: any, _headers: any, _params: any) {
         if (data && !data.error) {
             this.logger.info(`Found ${Object.keys(data).length} messages.`);
@@ -348,33 +320,6 @@ class Client extends EventEmitter {
         }
         this.logger.error(`Failed to get messages from server: ${data.error}`);
         return this.emit('error', { msg: 'failed to get messages' });
-    }
-
-    _onUnreadsForChannels(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.logger.info(`Found ${Object.keys(data).length} information about unreads.`);
-            return this.emit('channelsUnreadsLoaded', data);
-        }
-        this.logger.error(`Failed to get unreads of channels from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get unreads for channels' });
-    }
-
-    _onChannelLastViewed(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.logger.info(`Found ${Object.keys(data).length} for last reads.`);
-            return this.emit('channelLastViewedLoaded', data);
-        }
-        this.logger.error(`Failed to get last reads of channel(s) from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get last reads for channel(s)' });
-    }
-
-    _onMembersFromChannels(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.logger.info(`Found ${Object.keys(data).length} channels.`);
-            return this.emit('membersFromChannelsLoaded', data);
-        }
-        this.logger.error(`Failed to get messages from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get all members from channels' });
     }
 
     _onTeams(data: any, _headers: any, _params: any) {
@@ -397,7 +342,7 @@ class Client extends EventEmitter {
                     return isTeamFound;
                 });
             this.User.loadUsers();
-            return this.loadChannels();
+            return this.Channel.loadChannels();
         }
         this.logger.error('Failed to load Teams...');
         return this.reconnect();
@@ -412,14 +357,6 @@ class Client extends EventEmitter {
         return this.emit('error', { msg: 'failed to get team by name' });
     }
 
-    channelRoute(channelId: string) {
-        return `${this.teamRoute()}/channels/${channelId}`;
-    }
-
-    teamRoute() {
-        return `${usersRoute}/me/teams/${this.teamID}`;
-    }
-
     getTeams() {
         const uri = `${usersRoute}/me/teams`;
         this.logger.info(`Loading ${uri}`);
@@ -430,18 +367,6 @@ class Client extends EventEmitter {
         const uri = `/teams/name/${teamName}`;
         this.logger.info(`Loading ${uri}`);
         return this.Api.apiCall('GET', uri, null, this._onTeamsByName);
-    }
-
-    loadChannels() {
-        const uri = `/users/me/teams/${this.teamID}/channels`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onChannels);
-    }
-
-    loadUsersFromChannel(channelId: string) {
-        const uri = `/channels/${channelId}/members`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onUsersOfChannel);
     }
 
     loadMessagesFromChannel(channelId: string, options: any = {}) {
@@ -466,36 +391,6 @@ class Client extends EventEmitter {
         uri += `?${querystring.stringify(params)}`;
         this.logger.info(`Loading ${uri}`);
         return this.Api.apiCall('GET', uri, params, this._onMessages);
-    }
-
-    // to mark messages as read (e.g. after loading messages of channel)
-    // trigger loadChannelLastViewed method
-    loadChannelLastViewed(channelId: string, prevChannelId: string | null = null) {
-        const postData = {
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            channel_id: channelId,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            prev_channel_id: prevChannelId,
-        };
-        const uri = '/channels/members/me/view';
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('POST', uri, postData, this._onChannelLastViewed);
-    }
-
-    loadUnreadsForChannels() {
-        const uri = '/users/me/teams/unread';
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onUnreadsForChannels);
-    }
-
-
-    // method is needed e.g. to get detailed unreads (channels and direct messages)
-    // iterate over this.channels and substract msg_count (result from this call)
-    // from this.channels.total_msg_count
-    loadMembersFromChannels() {
-        const uri = `/users/me/teams/${this.teamID}/channels/members`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
     }
 
     connect() {
@@ -604,7 +499,7 @@ class Client extends EventEmitter {
     }
 
 
-    disconnect() {
+    disconnect(): boolean {
         if (!this.connected) {
             return false;
         }
@@ -617,7 +512,7 @@ class Client extends EventEmitter {
         return true;
     }
 
-    onMessage(message: any) {
+    onMessage(message: any): any {
         this.emit('raw_message', message);
         switch (message.event) {
         case 'ping':
@@ -664,31 +559,6 @@ class Client extends EventEmitter {
             this.logger.debug('Received unhandled message:');
             return this.logger.debug(message);
         }
-    }
-
-    getUserDirectMessageChannel(userID: string, callback: any) {
-        // check if channel already exists
-        let channel = `${this.self.id}__${userID}`;
-        channel = this.findChannelByName(channel);
-        if (!channel) {
-            // check if channel in other direction exists
-            channel = `${userID}__${this.self.id}`;
-            channel = this.findChannelByName(channel);
-        }
-        if (channel) {
-            if (callback != null) { callback(channel); }
-            return;
-        }
-        // channel obviously doesn't exist, let's create it
-        this.createDirectChannel(userID, callback);
-    }
-
-    getAllChannels(): Record<string, any> {
-        return this.channels;
-    }
-
-    getChannelByID(id: string): Record<string, any> {
-        return this.channels[id];
     }
 
     customMessage(postData: any, channelID: string) {
@@ -784,69 +654,6 @@ class Client extends EventEmitter {
         });
     }
 
-    // type "D"
-    createDirectChannel(userID: string, callback: any) {
-        const postData = [userID, this.self.id];
-        return this.Api.apiCall(
-            'POST',
-            '/channels/direct',
-            postData,
-            (data: any, _headers: any) => {
-                this.logger.info('Created Direct Channel.');
-                return (callback != null) ? callback(data) : false;
-            },
-        );
-    }
-
-    // type "G"
-    createGroupChannel(userIDs: string, callback: any) {
-        return this.Api.apiCall(
-            'POST',
-            '/channels/group',
-            userIDs,
-            (data: any, _headers: any) => {
-                this.logger.info('Created Group Channel.');
-                return (callback != null) ? callback(data) : false;
-            },
-        );
-    }
-
-    // type "P"
-    createPrivateChannel(privateChannel: any, callback: any) {
-        return this.Api.apiCall(
-            'POST',
-            '/channels',
-            privateChannel,
-            (data: any, _headers: any) => {
-                this.logger.info('Created Private Channel.');
-                return (callback != null) ? callback(data) : false;
-            },
-        );
-    }
-
-    addUserToChannel(privateChannel: any, callback: any) {
-        const uri = `/channels/${privateChannel.channel_id}/members`;
-        return this.Api.apiCall(
-            'POST',
-            uri,
-            privateChannel,
-            (data: any, _headers: any) => {
-                this.logger.info(`Added User to Channel${privateChannel.channel_id}`);
-                return (callback != null) ? callback(data) : false;
-            },
-        );
-    }
-
-    findChannelByName(name: string): string | null {
-        const foundChannel = Object.keys(this.channels)
-            .find((channel: any) => {
-                const channelName = this.channels[channel].name;
-                const channelDisplayName = this.channels[channel].display_name;
-                return channelName === name || channelDisplayName === name;
-            });
-        return foundChannel || null;
-    }
-
     _chunkMessage(msg: any): Array<string> {
         if (!msg) {
             return [''];
@@ -899,23 +706,8 @@ class Client extends EventEmitter {
         });
     }
 
-    setChannelHeader(channelID: string, header: any) {
-        const postData = {
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            channel_id: channelID,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            channel_header: header,
-        };
-
-        return this.Api.apiCall(
-            'POST',
-            `${this.teamRoute()}/channels/update_header`,
-            postData,
-            (_data: any, _headers: any) => {
-                this.logger.debug('Channel header updated.');
-                return true;
-            },
-        );
+    teamRoute(): string {
+        return `${usersRoute}/me/teams/${this.teamID}`;
     }
 
     // Private functions
