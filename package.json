@@ -71,7 +71,7 @@
     "eslint-plugin-import": "^2.20.0",
     "husky": "^4.0.10",
     "jest": "^24.9.0",
-    "lint-staged": ">=8",
+    "lint-staged": ">=10.0.0",
     "rollup": "^1.29.0",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-polyfills": "^0.2.1",
