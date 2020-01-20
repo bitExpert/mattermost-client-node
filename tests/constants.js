@@ -1,3 +1,5 @@
+/* eslint-disable no-undef */
+/* eslint-disable @typescript-eslint/camelcase */
 // eslint-disable-next-line import/no-extraneous-dependencies
 import expect from 'expect';
 
