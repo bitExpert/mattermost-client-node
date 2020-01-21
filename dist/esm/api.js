@@ -45,7 +45,7 @@ class Api {
         return request(options, (error, res, value) => {
             if (error) {
                 if (callback) {
-                    return callback({ id: null, error: error.errno }, {}, callbackParams);
+                    return callback({ id: null, error: error.code }, {}, callbackParams);
                 }
             }
             else if (callback) {
