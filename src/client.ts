@@ -1,12 +1,12 @@
 import WebSocket from 'isomorphic-ws';
 import Log from 'log';
-import querystring from 'querystring';
 import { EventEmitter } from 'events';
 import HttpsProxyAgent from 'https-proxy-agent';
-import User from './user';
 import Api from './api';
-import Team from './team';
 import Channel from './channel';
+import Post from './post';
+import Team from './team';
+import User from './user';
 
 const apiPrefix = '/api/v4';
 const usersRoute = '/users';
@@ -20,8 +20,6 @@ class Client extends EventEmitter {
     options: any;
 
     useTLS: boolean;
-
-    messageMaxRunes: number;
 
     additionalHeaders: object;
 
@@ -77,6 +75,8 @@ class Client extends EventEmitter {
 
     Channel: Channel;
 
+    Post: Post;
+
     User: User;
 
     Team: Team;
@@ -87,7 +87,6 @@ class Client extends EventEmitter {
         this.host = host;
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
-        this.messageMaxRunes = 4000;
         this.additionalHeaders = {};
 
         this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
@@ -97,10 +96,6 @@ class Client extends EventEmitter {
         this.tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
         if (typeof options.tlsverify !== 'undefined') {
             this.tlsverify = options.tlsverify;
-        }
-
-        if (typeof options.messageMaxRunes !== 'undefined') {
-            this.messageMaxRunes = options.messageMaxRunes;
         }
 
         if (typeof options.additionalHeaders === 'object') {
@@ -165,21 +160,24 @@ class Client extends EventEmitter {
 
         this.initModules();
         this.initBindings();
+
+        if (typeof options.messageMaxRunes !== 'undefined') {
+            this.Post.messageMaxRunes = options.messageMaxRunes;
+        }
     }
 
-    initModules() {
+    initModules(): any {
         this.Api = new Api(this);
         this.Channel = new Channel(this, usersRoute);
+        this.Post = new Post(this);
         this.User = new User(this, usersRoute);
         this.Team = new Team(this, usersRoute);
     }
 
-    initBindings() {
+    initBindings(): any {
         // Binding because async calls galore
-
         this._onLogin = this._onLogin.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
-        this._onMessages = this._onMessages.bind(this);
     }
 
     login(email: string, password: string, mfaToken: string) {
@@ -252,39 +250,6 @@ class Client extends EventEmitter {
 
     _onRevoke(data: any) {
         return this.emit('sessionRevoked', data);
-    }
-
-    _onMessages(data: any, _headers: any, _params: any) {
-        if (data && !data.error) {
-            this.logger.info(`Found ${Object.keys(data).length} messages.`);
-            return this.emit('messagesLoaded', data);
-        }
-        this.logger.error(`Failed to get messages from server: ${data.error}`);
-        return this.emit('error', { msg: 'failed to get messages' });
-    }
-
-    loadMessagesFromChannel(channelId: string, options: any = {}) {
-        let uri = `/channels/${channelId}/posts`;
-        const allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
-        const params: any = {};
-        Object.entries(options).forEach((option: any) => {
-            const key = option[0];
-            const value = option[1];
-            if (allowedOptions.indexOf(key) >= 0) {
-                params[key] = value;
-            }
-        });
-        // set standard params for page / per_page if not set
-        if (!params.page) {
-            params.page = 0;
-        }
-        if (!params.per_page) {
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            params.per_page = 30;
-        }
-        uri += `?${querystring.stringify(params)}`;
-        this.logger.info(`Loading ${uri}`);
-        return this.Api.apiCall('GET', uri, params, this._onMessages);
     }
 
     connect() {
@@ -454,26 +419,6 @@ class Client extends EventEmitter {
         }
     }
 
-    customMessage(postData: any, channelID: string) {
-        let chunks: any;
-        const postDataExt = { ...postData };
-        if (postDataExt.message != null) {
-            chunks = this._chunkMessage(postData.message);
-            postDataExt.message = chunks.shift();
-        }
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        postDataExt.channel_id = channelID;
-        return this.Api.apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
-            this.logger.debug('Posted custom message.');
-            if ((chunks != null ? chunks.length : undefined) > 0) {
-                this.logger.debug(`Recursively posting remainder of customMessage: (${chunks.length})`);
-                postDataExt.message = chunks.join();
-                return this.customMessage(postData, channelID);
-            }
-            return true;
-        });
-    }
-
     dialog(triggerId: string, url: string, dialog: any) {
         const postData = {
             // eslint-disable-next-line @typescript-eslint/camelcase
@@ -489,114 +434,6 @@ class Client extends EventEmitter {
                 this.logger.debug('Created dialog');
             },
         );
-    }
-
-    editPost(postId: string, msg: any) {
-        let postData: any = msg;
-        if (typeof msg === 'string') {
-            postData = {
-                id: postId,
-                message: msg,
-            };
-        }
-        return this.Api.apiCall('PUT', `/posts/${postId}`, postData, (_data: any, _headers: any) => {
-            this.logger.debug('Edited post');
-        });
-    }
-
-    uploadFile(channelId: string, file: any, callback: any) {
-        const formData = {
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            channel_id: channelId,
-            files: file,
-        };
-
-        return this.Api.apiCall(
-            'POST',
-            '/files',
-            formData,
-            (data: any, _headers: any) => {
-                this.logger.debug('Posted file');
-                return callback(data);
-            },
-            {},
-            true,
-        );
-    }
-
-    react(messageID: string, emoji: string) {
-        const postData = {
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            user_id: this.self.id,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            post_id: messageID,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            emoji_name: emoji,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            create_at: 0,
-        };
-        return this.Api.apiCall('POST', '/reactions', postData, (_data: any, _headers: any) => {
-            this.logger.debug('Created reaction');
-        });
-    }
-
-    unreact(messageID: string, emoji: string) {
-        const uri = `/users/me/posts/${messageID}/reactions/${emoji}`;
-        return this.Api.apiCall('DELETE', uri, [], (_data: any, _headers: any) => {
-            this.logger.debug('Deleted reaction');
-        });
-    }
-
-    _chunkMessage(msg: any): Array<string> {
-        if (!msg) {
-            return [''];
-        }
-        return msg.match(new RegExp(`(.|[\r\n]){1,${this.messageMaxRunes}}`, 'g'));
-    }
-
-    postMessage(msg: any, channelID: string) {
-        const postData: any = {
-            message: msg,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            file_ids: [],
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            create_at: 0,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            user_id: this.self.id,
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            channel_id: channelID,
-        };
-
-        if (typeof msg === 'string') {
-            postData.message = msg;
-        } else {
-            postData.message = msg.message;
-            if (msg.props) {
-                postData.props = msg.props;
-            }
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            if (msg.file_ids) {
-                // eslint-disable-next-line @typescript-eslint/camelcase
-                postData.file_ids = msg.file_ids;
-            }
-        }
-
-        // break apart long messages
-        const chunks = this._chunkMessage(postData.message);
-        postData.message = chunks.shift();
-
-        return this.Api.apiCall('POST', '/posts', postData, (_data: any, _headers: any) => {
-            this.logger.debug('Posted message.');
-
-            if ((chunks != null ? chunks.length : undefined) > 0) {
-                const message = chunks.join();
-                const chunksLenght = chunks ? chunks.length : undefined;
-                this.logger.debug(`Recursively posting remainder of message: (${chunksLenght})`);
-                return this.postMessage(message, channelID);
-            }
-
-            return true;
-        });
     }
 
     // Private functions
