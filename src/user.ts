@@ -98,6 +98,9 @@ class User {
      * callbacks
      */
 
+    /**
+     * @event
+     */
     private _onMe(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this.client.me = data;
@@ -108,6 +111,9 @@ class User {
         return this.client.reconnect();
     }
 
+    /**
+     * @event
+     */
     private _onLoadUsers(data: IUser[] | any, _headers: any, params: any): any {
         if (data && !data.error) {
             data.forEach((user: IUser) => {
@@ -124,6 +130,9 @@ class User {
         return this.client.emit('error', { msg: 'failed to load profiles' });
     }
 
+    /**
+     * @event
+     */
     private _onLoadUser(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this._users[data.id] = data;
@@ -132,6 +141,9 @@ class User {
         return this.client.emit('error', { msg: 'failed to load profile' });
     }
 
+    /**
+     * @event
+     */
     private _onCreateUser(data: any): any {
         if (data.id) {
             this.client.logger.info('Creating user...');
@@ -141,6 +153,9 @@ class User {
         return this.client.emit('error', data);
     }
 
+    /**
+     * @event
+     */
     private _onUsersOfChannel(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             Object.entries(data).forEach((channel: any) => {
@@ -153,6 +168,9 @@ class User {
         return this.client.emit('error', { msg: 'failed to get channel users' });
     }
 
+    /**
+     * @event
+     */
     private _onPreferences(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this._userPreferences = data;

@@ -72,7 +72,10 @@ class Authentication {
      * callbacks
      */
 
-    _onLogin(data: any, headers: any): any {
+    /**
+     * @event
+     */
+    private _onLogin(data: any, headers: any): any {
         if (data) {
             if (!data.id) {
                 this.client.logger.error('Login call failed', JSON.stringify(data));

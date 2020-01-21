@@ -184,6 +184,9 @@ class Channel {
      * callbacks
      */
 
+    /**
+     * @event
+     */
     private _onChannels(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             data.forEach((channel: IChannel) => {
@@ -196,6 +199,9 @@ class Channel {
         return this.client.emit('error', { msg: 'failed to get channel list' });
     }
 
+    /**
+     * @event
+     */
     private _onUnreadsForChannels(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this.client.logger.info(`Found ${Object.keys(data).length} information about unreads.`);
@@ -205,6 +211,9 @@ class Channel {
         return this.client.emit('error', { msg: 'failed to get unreads for channels' });
     }
 
+    /**
+     * @event
+     */
     private _onMembersFromChannels(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this.client.logger.info(`Found ${Object.keys(data).length} channels.`);
@@ -214,6 +223,9 @@ class Channel {
         return this.client.emit('error', { msg: 'failed to get all members from channels' });
     }
 
+    /**
+     * @event
+     */
     private _onChannelLastViewed(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this.client.logger.info(`Found ${Object.keys(data).length} for last reads.`);

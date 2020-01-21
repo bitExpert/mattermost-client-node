@@ -200,7 +200,10 @@ class Post {
      * callbacks
      */
 
-    _onMessages(data: any, _headers: any, _params: any): any {
+    /**
+     * @event
+     */
+    private _onMessages(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this.client.logger.info(`Found ${Object.keys(data).length} messages.`);
             return this.client.emit('messagesLoaded', data);

@@ -105,6 +105,9 @@ class Team {
      * callbacks
      */
 
+    /**
+     * @event
+     */
     private _onTeams(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this._teams = data;
@@ -131,6 +134,9 @@ class Team {
         return this.client.reconnect();
     }
 
+    /**
+     * @event
+     */
     private _onTeamsByName(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
             this.client.logger.info(`Found ${Object.keys(data).length} channels.`);
@@ -140,6 +146,9 @@ class Team {
         return this.client.emit('error', { msg: 'failed to get team by name' });
     }
 
+    /**
+     * @event
+     */
     private _onCreateTeam(data: any): any {
         if (!data.error) {
             this.client.logger.info('Creating team...');
@@ -149,6 +158,9 @@ class Team {
         return this.client.emit('error', data);
     }
 
+    /**
+     * @event
+     */
     private _onAddUserToTeam(data: any): any {
         if (!data.error) {
             this.client.logger.info('Adding user to team...');
@@ -158,6 +170,9 @@ class Team {
         return this.client.emit('error', data);
     }
 
+    /**
+     * @event
+     */
     private _onCheckIfTeamExists(data: any): any {
         if (!data.error) {
             this.client.logger.info('Checking if team exists...');

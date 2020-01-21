@@ -280,6 +280,9 @@ class Websocket {
      * helpers
      */
 
+    /**
+     * @internal
+     */
     private _send(message: any): any {
         const messageExt = { ...message };
         if (!this._connected) {

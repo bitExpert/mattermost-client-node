@@ -18,6 +18,9 @@ class Api {
         }
     }
 
+    /**
+     * @internal
+     */
     apiCall(
         method: string,
         path: string,
@@ -86,6 +89,9 @@ class Api {
         });
     }
 
+    /**
+     * @internal
+     */
     _getApiUrl(path: string): string {
         const protocol = this.client.Websocket.useTLS ? 'https://' : 'http://';
         const port = this.client.options.httpPort ? `:${this.client.options.httpPort}` : '';
