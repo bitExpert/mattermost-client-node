@@ -13,6 +13,8 @@ class Websocket {
     // @Todo rename to tlsVerify
     private readonly _tlsverify: boolean = false;
 
+    private readonly _httpProxy: any;
+
     private _socketUrl: string;
 
     private _connected = false;
@@ -57,6 +59,10 @@ class Websocket {
         if (typeof this.client.options.tlsverify !== 'undefined') {
             this._tlsverify = this.client.options.tlsverify;
         }
+
+        this._httpProxy = (this.client.options.httpProxy != null)
+            ? this.client.options.httpProxy
+            : false;
     }
 
     /**
@@ -70,7 +76,9 @@ class Websocket {
         this.client.logger.info('Connecting...');
         const options: any = { rejectUnauthorized: this._tlsverify };
 
-        if (this.client.httpProxy) { options.agent = new HttpsProxyAgent(this.client.httpProxy); }
+        if (this._httpProxy) {
+            options.agent = new HttpsProxyAgent(this._httpProxy);
+        }
 
         // Set up websocket connection to server
         if (this._ws) {
@@ -161,9 +169,9 @@ class Websocket {
                         return this.client.tokenLogin(this.client.Authentication.token);
                     }
                     return this.client.login(
-                        this.client.email,
-                        this.client.password,
-                        this.client.mfaToken,
+                        this.client.Authentication.authEmail,
+                        this.client.Authentication.authPassword,
+                        this.client.Authentication.mfaToken,
                     );
                 },
                 timeout,
@@ -262,6 +270,10 @@ class Websocket {
 
     get tlsverify(): boolean {
         return this._tlsverify;
+    }
+
+    get httpProxy(): any {
+        return this._httpProxy;
     }
 
     /**

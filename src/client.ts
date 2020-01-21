@@ -17,19 +17,9 @@ class Client extends EventEmitter {
 
     options: any;
 
-    additionalHeaders: object;
-
-    httpProxy: any;
-
     logger: any;
 
-    email: string;
-
-    password: string;
-
-    preferences: any;
-
-    me: any;
+    me: any = null;
 
     Api: Api;
 
@@ -51,20 +41,15 @@ class Client extends EventEmitter {
         this.host = host;
         this.group = group;
         this.options = options || { wssPort: 443, httpPort: 80 };
-        this.additionalHeaders = {};
-
-        if (typeof options.additionalHeaders === 'object') {
-            this.additionalHeaders = options.additionalHeaders;
-        }
-
-        this.me = null;
-
-        this.httpProxy = (this.options.httpProxy != null) ? this.options.httpProxy : false;
+        this._setLogger();
+        this.initModules();
 
         process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
+    }
 
-        if (typeof options.logger !== 'undefined') {
-            switch (options.logger) {
+    private _setLogger(): any {
+        if (typeof this.options.logger !== 'undefined') {
+            switch (this.options.logger) {
             case 'noop':
                 this.logger = {
                     debug: () => {
@@ -85,17 +70,11 @@ class Client extends EventEmitter {
                 };
                 break;
             default:
-                this.logger = options.logger;
+                this.logger = this.options.logger;
                 break;
             }
         } else {
             this.logger = Log;
-        }
-
-        this.initModules();
-
-        if (typeof options.messageMaxRunes !== 'undefined') {
-            this.Post.messageMaxRunes = options.messageMaxRunes;
         }
     }
 

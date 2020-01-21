@@ -5,6 +5,8 @@ class User {
 
     private _users: any = {};
 
+    private _userPreferences: any;
+
     constructor(
         client: any,
         usersRoute: string,
@@ -153,7 +155,7 @@ class User {
 
     private _onPreferences(data: any, _headers: any, _params: any): any {
         if (data && !data.error) {
-            this.client.preferences = data;
+            this._userPreferences = data;
             this.client.emit('preferencesLoaded', data);
             return this.client.logger.info('Loaded Preferences...');
         }

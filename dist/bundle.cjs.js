@@ -53,7 +53,11 @@ var __assign = function() {
 var apiPrefix = '/api/v4';
 var Api = (function () {
     function Api(client) {
+        this._additionalHeaders = {};
         this.client = client;
+        if (typeof this.client.options.additionalHeaders === 'object') {
+            this._additionalHeaders = this.client.options.additionalHeaders;
+        }
     }
     Api.prototype.apiCall = function (method, path, params, callback, callbackParams, isForm) {
         if (callbackParams === void 0) { callbackParams = {}; }
@@ -73,14 +77,14 @@ var Api = (function () {
                 'X-Requested-With': 'XMLHttpRequest',
             },
         };
-        if (this.client.additionalHeaders) {
-            options.headers = Object.assign(options.headers, __assign({}, this.client.additionalHeaders));
+        if (this._additionalHeaders) {
+            options.headers = Object.assign(options.headers, __assign({}, this._additionalHeaders));
         }
         if (this.client.Authentication.token) {
             options.headers.Authorization = "BEARER " + this.client.Authentication.token;
         }
-        if (this.client.httpProxy) {
-            options.proxy = this.client.httpProxy;
+        if (this.client.Websocket.httpProxy) {
+            options.proxy = this.client.Websocket.httpProxy;
         }
         if (isForm) {
             options.headers['Content-Type'] = 'multipart/form-data';
@@ -133,13 +137,13 @@ var Authentication = (function () {
     };
     Authentication.prototype.login = function (email, password, mfaToken) {
         this._hasAccessToken = false;
-        this.client.email = email;
-        this.client.password = password;
+        this._authEmail = email;
+        this._authPassword = password;
         this._mfaToken = mfaToken;
         this.client.logger.info('Logging in...');
         return this.client.Api.apiCall('POST', this.usersRoute + "/login", {
-            login_id: this.client.email,
-            password: this.client.password,
+            login_id: this._authEmail,
+            password: this._authPassword,
             token: this._mfaToken,
         }, this._onLogin);
     };
@@ -194,6 +198,27 @@ var Authentication = (function () {
         },
         set: function (value) {
             this._token = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Authentication.prototype, "mfaToken", {
+        get: function () {
+            return this._mfaToken;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Authentication.prototype, "authEmail", {
+        get: function () {
+            return this._authEmail;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Authentication.prototype, "authPassword", {
+        get: function () {
+            return this._authPassword;
         },
         enumerable: true,
         configurable: true
@@ -367,6 +392,9 @@ var Post = (function () {
     function Post(client) {
         this._messageMaxRunes = 4000;
         this.client = client;
+        if (typeof this.client.options.messageMaxRunes !== 'undefined') {
+            this._messageMaxRunes = this.client.options.messageMaxRunes;
+        }
         this.initBindings();
     }
     Post.prototype.initBindings = function () {
@@ -498,13 +526,6 @@ var Post = (function () {
         this.client.logger.error("Failed to get messages from server: " + data.error);
         return this.client.emit('error', { msg: 'failed to get messages' });
     };
-    Object.defineProperty(Post.prototype, "messageMaxRunes", {
-        set: function (value) {
-            this._messageMaxRunes = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
     Post.prototype._chunkMessage = function (msg) {
         if (!msg) {
             return [''];
@@ -742,7 +763,7 @@ var User = (function () {
     };
     User.prototype._onPreferences = function (data, _headers, _params) {
         if (data && !data.error) {
-            this.client.preferences = data;
+            this._userPreferences = data;
             this.client.emit('preferencesLoaded', data);
             return this.client.logger.info('Loaded Preferences...');
         }
@@ -791,6 +812,9 @@ var Websocket = (function () {
         if (typeof this.client.options.tlsverify !== 'undefined') {
             this._tlsverify = this.client.options.tlsverify;
         }
+        this._httpProxy = (this.client.options.httpProxy != null)
+            ? this.client.options.httpProxy
+            : false;
     }
     Websocket.prototype.connect = function () {
         var _this = this;
@@ -800,8 +824,8 @@ var Websocket = (function () {
         this._connecting = true;
         this.client.logger.info('Connecting...');
         var options = { rejectUnauthorized: this._tlsverify };
-        if (this.client.httpProxy) {
-            options.agent = new HttpsProxyAgent(this.client.httpProxy);
+        if (this._httpProxy) {
+            options.agent = new HttpsProxyAgent(this._httpProxy);
         }
         if (this._ws) {
             this._ws.close();
@@ -881,7 +905,7 @@ var Websocket = (function () {
                 if (_this.client.hasAccessToken) {
                     return _this.client.tokenLogin(_this.client.Authentication.token);
                 }
-                return _this.client.login(_this.client.email, _this.client.password, _this.client.mfaToken);
+                return _this.client.login(_this.client.Authentication.authEmail, _this.client.Authentication.authPassword, _this.client.Authentication.mfaToken);
             }, timeout);
         }
         return false;
@@ -972,6 +996,13 @@ var Websocket = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(Websocket.prototype, "httpProxy", {
+        get: function () {
+            return this._httpProxy;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Websocket.prototype._send = function (message) {
         var messageExt = __assign({}, message);
         if (!this._connected) {
@@ -998,20 +1029,20 @@ var Client = (function (_super) {
     __extends(Client, _super);
     function Client(host, group, options) {
         var _this = _super.call(this) || this;
+        _this.me = null;
         _this.host = host;
         _this.group = group;
         _this.options = options || { wssPort: 443, httpPort: 80 };
-        _this.additionalHeaders = {};
-        if (typeof options.additionalHeaders === 'object') {
-            _this.additionalHeaders = options.additionalHeaders;
-        }
-        _this.me = null;
-        _this.httpProxy = (_this.options.httpProxy != null) ? _this.options.httpProxy : false;
+        _this._setLogger();
+        _this.initModules();
         process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
-        if (typeof options.logger !== 'undefined') {
-            switch (options.logger) {
+        return _this;
+    }
+    Client.prototype._setLogger = function () {
+        if (typeof this.options.logger !== 'undefined') {
+            switch (this.options.logger) {
                 case 'noop':
-                    _this.logger = {
+                    this.logger = {
                         debug: function () {
                         },
                         info: function () {
@@ -1025,19 +1056,14 @@ var Client = (function (_super) {
                     };
                     break;
                 default:
-                    _this.logger = options.logger;
+                    this.logger = this.options.logger;
                     break;
             }
         }
         else {
-            _this.logger = Log;
+            this.logger = Log;
         }
-        _this.initModules();
-        if (typeof options.messageMaxRunes !== 'undefined') {
-            _this.Post.messageMaxRunes = options.messageMaxRunes;
-        }
-        return _this;
-    }
+    };
     Client.prototype.initModules = function () {
         this.Api = new Api(this);
         this.Authentication = new Authentication(this, usersRoute);

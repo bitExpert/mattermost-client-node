@@ -3,12 +3,16 @@ import querystring from 'querystring';
 class Post {
     client: any;
 
-    private _messageMaxRunes = 4000;
+    private readonly _messageMaxRunes = 4000;
 
     constructor(
         client: any,
     ) {
         this.client = client;
+
+        if (typeof this.client.options.messageMaxRunes !== 'undefined') {
+            this._messageMaxRunes = this.client.options.messageMaxRunes;
+        }
 
         this.initBindings();
     }
@@ -203,15 +207,6 @@ class Post {
         }
         this.client.logger.error(`Failed to get messages from server: ${data.error}`);
         return this.client.emit('error', { msg: 'failed to get messages' });
-    }
-
-
-    /**
-     * getters & setters
-     */
-
-    set messageMaxRunes(value: number) {
-        this._messageMaxRunes = value;
     }
 
 

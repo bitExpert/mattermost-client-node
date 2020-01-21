@@ -6,10 +6,16 @@ const apiPrefix = '/api/v4';
 class Api {
     client: any;
 
+    private _additionalHeaders: object = {};
+
     constructor(
         client: any,
     ) {
         this.client = client;
+
+        if (typeof this.client.options.additionalHeaders === 'object') {
+            this._additionalHeaders = this.client.options.additionalHeaders;
+        }
     }
 
     apiCall(
@@ -34,17 +40,19 @@ class Api {
             },
         };
 
-        if (this.client.additionalHeaders) {
+        if (this._additionalHeaders) {
             options.headers = Object.assign(
                 options.headers,
-                { ...this.client.additionalHeaders },
+                { ...this._additionalHeaders },
             );
         }
 
         if (this.client.Authentication.token) {
             options.headers.Authorization = `BEARER ${this.client.Authentication.token}`;
         }
-        if (this.client.httpProxy) { options.proxy = this.client.httpProxy; }
+        if (this.client.Websocket.httpProxy) {
+            options.proxy = this.client.Websocket.httpProxy;
+        }
 
         if (isForm) {
             options.headers['Content-Type'] = 'multipart/form-data';

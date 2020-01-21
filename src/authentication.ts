@@ -11,6 +11,10 @@ class Authentication {
 
     private _mfaToken: string;
 
+    private _authEmail: string;
+
+    private _authPassword: string;
+
     constructor(
         client: any,
         usersRoute: string,
@@ -32,8 +36,8 @@ class Authentication {
 
     login(email: string, password: string, mfaToken: string): any {
         this._hasAccessToken = false;
-        this.client.email = email;
-        this.client.password = password;
+        this._authEmail = email;
+        this._authPassword = password;
         this._mfaToken = mfaToken;
         this.client.logger.info('Logging in...');
         return this.client.Api.apiCall(
@@ -41,8 +45,8 @@ class Authentication {
             `${this.usersRoute}/login`,
             {
                 // eslint-disable-next-line @typescript-eslint/camelcase
-                login_id: this.client.email,
-                password: this.client.password,
+                login_id: this._authEmail,
+                password: this._authPassword,
                 token: this._mfaToken,
             },
             this._onLogin,
@@ -114,6 +118,18 @@ class Authentication {
 
     set token(value: string) {
         this._token = value;
+    }
+
+    get mfaToken(): string {
+        return this._mfaToken;
+    }
+
+    get authEmail(): string {
+        return this._authEmail;
+    }
+
+    get authPassword(): string {
+        return this._authPassword;
     }
 }
 
