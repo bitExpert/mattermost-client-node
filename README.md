@@ -8,8 +8,42 @@ Mattermost client which uses the Web API and websockets, forked from [loafoe's m
 
 ```shell
 yarn add mattermost-client-node
-# or
+```
+or
+```shell
 npm i mattermost-client-node
+```
+
+# Usage
+
+Import via `require`:
+
+```shell script
+const mmClient = require('mattermost-client-node');
+```
+or via `import`:
+```shell script
+import mmClient from 'mattermost-client-node';
+```
+
+and initialize:
+```shell script
+const mattermost = new mmClient([hostWithOptionalPort], [teamName], [options]);
+```
+
+Example:
+
+```shell script
+import mmClient from 'mattermost-client-node';
+
+const mattermost = new mmClient(
+  'localhost:8065',
+  'myteam',
+  {
+    wssPort: 443,
+    httpPort: 80 
+  }
+);
 ```
 
 # Features
