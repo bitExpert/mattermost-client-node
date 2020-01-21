@@ -52,19 +52,19 @@ class Client extends EventEmitter {
             switch (this.options.logger) {
             case 'noop':
                 this.logger = {
-                    debug: () => {
+                    debug: (): any => {
                         // do nothing
                     },
-                    info: () => {
+                    info: (): any => {
                         // do nothing
                     },
-                    notice: () => {
+                    notice: (): any => {
                         // do nothing
                     },
-                    warning: () => {
+                    warning: (): any => {
                         // do nothing
                     },
-                    error: () => {
+                    error: (): any => {
                         // do nothing
                     },
                 };
@@ -88,7 +88,8 @@ class Client extends EventEmitter {
         this.Websocket = new Websocket(this);
     }
 
-    dialog(triggerId: string, url: string, dialog: any) {
+    // @Todo Decide on where to put this one
+    dialog(triggerId: string, url: string, dialog: any): any {
         const postData = {
             // eslint-disable-next-line @typescript-eslint/camelcase
             trigger_id: triggerId,
