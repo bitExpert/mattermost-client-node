@@ -1,57 +1,40 @@
-import request from 'request';
-import WebSocket from 'isomorphic-ws';
-import TextEncoding from 'text-encoding';
-import Log from 'log';
-import querystring from 'querystring';
-import { EventEmitter } from 'events';
-import HttpsProxyAgent from 'https-proxy-agent';
-
-/*! *****************************************************************************
-Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use
-this file except in compliance with the License. You may obtain a copy of the
-License at http://www.apache.org/licenses/LICENSE-2.0
-
-THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
-WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-MERCHANTABLITY OR NON-INFRINGEMENT.
-
-See the Apache Version 2.0 License for specific language governing permissions
-and limitations under the License.
-***************************************************************************** */
-/* global Reflect, Promise */
-
-var extendStatics = function(d, b) {
-    extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return extendStatics(d, b);
-};
-
-function __extends(d, b) {
-    extendStatics(d, b);
-    function __() { this.constructor = d; }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-}
-
-var __assign = function() {
-    __assign = Object.assign || function __assign(t) {
+"use strict";
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
         for (var s, i = 1, n = arguments.length; i < n; i++) {
             s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
         }
         return t;
     };
     return __assign.apply(this, arguments);
 };
-
-var User = {
-    getAllUsers: function () {
-        return this.users;
-    },
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
-
+Object.defineProperty(exports, "__esModule", { value: true });
+var request_1 = __importDefault(require("request"));
+var isomorphic_ws_1 = __importDefault(require("isomorphic-ws"));
+var text_encoding_1 = __importDefault(require("text-encoding"));
+var log_1 = __importDefault(require("log"));
+var querystring_1 = __importDefault(require("querystring"));
+var events_1 = require("events");
+var https_proxy_agent_1 = __importDefault(require("https-proxy-agent"));
+var user_1 = __importDefault(require("./user"));
 var apiPrefix = '/api/v4';
 var usersRoute = '/users';
 var defaultPingInterval = 60000;
@@ -64,7 +47,7 @@ var Client = (function (_super) {
         _this.options = options || { wssPort: 443, httpPort: 80 };
         _this.messageMaxRunes = 4000;
         _this.additionalHeaders = {};
-        _this.getAllUsers = User.getAllUsers;
+        _this.getAllUsers = user_1.default.getAllUsers;
         _this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {
             _this.useTLS = options.useTLS;
@@ -124,7 +107,7 @@ var Client = (function (_super) {
             }
         }
         else {
-            _this.logger = Log;
+            _this.logger = log_1.default;
         }
         _this._onLogin = _this._onLogin.bind(_this);
         _this._onCreateTeam = _this._onCreateTeam.bind(_this);
@@ -456,7 +439,7 @@ var Client = (function (_super) {
         if (!params.per_page) {
             params.per_page = 30;
         }
-        uri += "?" + querystring.stringify(params);
+        uri += "?" + querystring_1.default.stringify(params);
         this.logger.info("Loading " + uri);
         return this._apiCall('GET', uri, params, this._onMessages);
     };
@@ -489,13 +472,13 @@ var Client = (function (_super) {
         this.logger.info('Connecting...');
         var options = { rejectUnauthorized: this.tlsverify };
         if (this.httpProxy) {
-            options.agent = new HttpsProxyAgent(this.httpProxy);
+            options.agent = new https_proxy_agent_1.default(this.httpProxy);
         }
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
-        this.ws = new WebSocket(this.socketUrl, options);
+        this.ws = new isomorphic_ws_1.default(this.socketUrl, options);
         this.ws.on('error', function (error) {
             _this._connecting = false;
             return _this.emit('error', error);
@@ -849,7 +832,7 @@ var Client = (function (_super) {
             rejectUnauthorized: this.tlsverify,
             headers: {
                 'Content-Type': 'application/json',
-                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
+                'Content-Length': new text_encoding_1.default.TextEncoder('utf-8').encode(postData).length,
                 'X-Requested-With': 'XMLHttpRequest',
             },
         };
@@ -870,7 +853,7 @@ var Client = (function (_super) {
         }
         this.logger.debug(method + " " + path);
         this.logger.info("api url:" + options.uri);
-        return request(options, function (error, res, value) {
+        return request_1.default(options, function (error, res, value) {
             if (error) {
                 if (callback) {
                     return callback({ id: null, error: error.errno }, {}, callbackParams);
@@ -897,6 +880,6 @@ var Client = (function (_super) {
         return protocol + this.host + port + apiPrefix + path;
     };
     return Client;
-}(EventEmitter));
-
-export default Client;
+}(events_1.EventEmitter));
+exports.default = Client;
+//# sourceMappingURL=client.js.map
