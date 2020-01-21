@@ -1,4 +1,4 @@
-import Client from '../dist/bundle.cjs';
+import Client from '../dist/cjs/client';
 import {
     authenticationTests,
     channelsTests,

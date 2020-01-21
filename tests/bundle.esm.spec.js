@@ -1,4 +1,4 @@
-import Client from '../dist/bundle.esm';
+import Client from '../dist/esm/client';
 import {
     authenticationTests,
     channelsTests,
