@@ -15,7 +15,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var text_encoding_1 = __importDefault(require("text-encoding"));
-var request_1 = __importDefault(require("request"));
+var node_fetch_1 = __importDefault(require("node-fetch"));
 var apiPrefix = '/api/v4';
 var Api = (function () {
     function Api(client) {
@@ -25,58 +25,61 @@ var Api = (function () {
             this._additionalHeaders = this.client.options.additionalHeaders;
         }
     }
-    Api.prototype.apiCall = function (method, path, params, callback, callbackParams, isForm) {
+    Api.prototype.apiCall = function (method, path, body, callback, callbackParams, isForm) {
         if (callbackParams === void 0) { callbackParams = {}; }
         if (isForm === void 0) { isForm = false; }
         var postData = '';
-        if (params != null) {
-            postData = JSON.stringify(params);
+        var res;
+        if (body != null) {
+            postData = JSON.stringify(body);
         }
-        var options = {
-            uri: this._getApiUrl(path),
-            method: method,
-            json: params,
-            rejectUnauthorized: this.client.Websocket.tlsverify,
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': new text_encoding_1.default.TextEncoder('utf-8').encode(postData).length,
-                'X-Requested-With': 'XMLHttpRequest',
+        var payload = {
+            path: this._getApiUrl(path),
+            options: {
+                method: method,
+                body: body,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': new text_encoding_1.default.TextEncoder('utf-8').encode(postData).length,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
             },
         };
         if (this._additionalHeaders) {
-            options.headers = Object.assign(options.headers, __assign({}, this._additionalHeaders));
+            payload.options.headers = Object.assign(payload.options.headers, __assign({}, this._additionalHeaders));
         }
         if (this.client.Authentication.token) {
-            options.headers.Authorization = "BEARER " + this.client.Authentication.token;
+            payload.options.headers.Authorization = "BEARER " + this.client.Authentication.token;
         }
         if (this.client.Websocket.httpProxy) {
-            options.proxy = this.client.Websocket.httpProxy;
+            payload.options.proxy = this.client.Websocket.httpProxy;
         }
         if (isForm) {
-            options.headers['Content-Type'] = 'multipart/form-data';
-            delete options.headers['Content-Length'];
-            delete options.json;
-            options.formData = params;
+            payload.options.headers['Content-Type'] = 'multipart/form-data';
+            delete payload.options.headers['Content-Length'];
         }
         this.client.logger.debug(method + " " + path);
-        this.client.logger.info("api url:" + options.uri);
-        return request_1.default(options, function (error, res, value) {
-            if (error) {
-                if (callback) {
-                    return callback({ id: null, error: error.errno }, {}, callbackParams);
-                }
-            }
-            else if (callback) {
-                if ((res.statusCode === 200) || (res.statusCode === 201)) {
-                    var safeValue = typeof value === 'string'
-                        ? JSON.parse(value)
-                        : value;
-                    return callback(safeValue, res.headers, callbackParams);
+        this.client.logger.info("api url:" + payload.path);
+        return node_fetch_1.default(payload.path, payload.options)
+            .then(function (rawResponse) {
+            res = rawResponse;
+            return rawResponse.json();
+        })
+            .then(function (json) {
+            if (callback) {
+                if ((res.status === 200) || (res.status === 201)) {
+                    return callback(json, res.headers, callbackParams);
                 }
                 return callback({
                     id: null,
-                    error: "API response: " + res.statusCode + " " + JSON.stringify(value),
+                    error: "API response: " + res.statusCode + " " + res.statusText,
                 }, res.headers, callbackParams);
+            }
+            return false;
+        })
+            .catch(function (err) {
+            if (callback) {
+                return callback({ id: null, error: err.errno }, {}, callbackParams);
             }
             return false;
         });

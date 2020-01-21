@@ -51,9 +51,11 @@
     "node": ">=10"
   },
   "dependencies": {
+    "@types/node-fetch": "^2.5.4",
     "https-proxy-agent": "^4.0.0",
     "isomorphic-ws": "^4.0.1",
     "log": "^6.0.0",
+    "node-fetch": "^2.6.0",
     "request": "^2.88.0",
     "text-encoding": "^0.7.0",
     "ws": "^7.2.1"
