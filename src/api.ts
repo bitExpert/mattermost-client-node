@@ -6,8 +6,6 @@ const apiPrefix = '/api/v4';
 class Api {
     client: any;
 
-    private _token: string = null;
-
     constructor(
         client: any,
     ) {
@@ -28,7 +26,7 @@ class Api {
             uri: this._getApiUrl(path),
             method,
             json: params,
-            rejectUnauthorized: this.client.tlsverify,
+            rejectUnauthorized: this.client.Websocket.tlsverify,
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
@@ -43,7 +41,9 @@ class Api {
             );
         }
 
-        if (this._token) { options.headers.Authorization = `BEARER ${this._token}`; }
+        if (this.client.Authentication.token) {
+            options.headers.Authorization = `BEARER ${this.client.Authentication.token}`;
+        }
         if (this.client.httpProxy) { options.proxy = this.client.httpProxy; }
 
         if (isForm) {
@@ -79,14 +79,9 @@ class Api {
     }
 
     _getApiUrl(path: string): string {
-        const protocol = this.client.useTLS ? 'https://' : 'http://';
+        const protocol = this.client.Websocket.useTLS ? 'https://' : 'http://';
         const port = this.client.options.httpPort ? `:${this.client.options.httpPort}` : '';
         return protocol + this.client.host + port + apiPrefix + path;
-    }
-
-    // gets set on tokenLogin() in client
-    set token(value: string) {
-        this._token = value;
     }
 }
 

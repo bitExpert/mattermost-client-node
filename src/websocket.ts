@@ -8,6 +8,11 @@ class Websocket {
 
     private _ws: any = null;
 
+    private readonly _useTLS: boolean = false;
+
+    // @Todo rename to tlsVerify
+    private readonly _tlsverify: boolean = false;
+
     private _socketUrl: string;
 
     private _connected = false;
@@ -42,6 +47,16 @@ class Websocket {
         if (this.client.options.autoReconnect != null) {
             this._autoReconnect = this.client.options.autoReconnect;
         }
+
+        this._useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
+        if (typeof this.client.options.useTLS !== 'undefined') {
+            this._useTLS = this.client.options.useTLS;
+        }
+
+        this._tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
+        if (typeof this.client.options.tlsverify !== 'undefined') {
+            this._tlsverify = this.client.options.tlsverify;
+        }
     }
 
     /**
@@ -53,7 +68,7 @@ class Websocket {
 
         this._connecting = true;
         this.client.logger.info('Connecting...');
-        const options: any = { rejectUnauthorized: this.client.tlsverify };
+        const options: any = { rejectUnauthorized: this._tlsverify };
 
         if (this.client.httpProxy) { options.agent = new HttpsProxyAgent(this.client.httpProxy); }
 
@@ -79,7 +94,7 @@ class Websocket {
             const challenge = {
                 action: 'authentication_challenge',
                 data: {
-                    token: this.client.token,
+                    token: this.client.Authentication.token,
                 },
             };
             this.client.logger.info('Sending challenge...');
@@ -93,7 +108,7 @@ class Websocket {
                 }
                 if (this._lastPong && (Date.now() - this._lastPong) > (2 * this._pingInterval)) {
                     this.client.logger.error('Last pong is too old: %d', (Date.now() - this._lastPong) / 1000);
-                    this.client.authenticated = false;
+                    this.client.Authentication.authenticated = false;
                     this._connected = false;
                     this.reconnect();
                     return;
@@ -129,7 +144,7 @@ class Websocket {
                 clearInterval(this._pongTimeout);
                 this._pongTimeout = null;
             }
-            this.client.authenticated = false;
+            this.client.Authentication.authenticated = false;
 
             if (this._ws) {
                 this._ws.close();
@@ -143,7 +158,7 @@ class Websocket {
                 () => {
                     this.client.logger.info('Attempting reconnect');
                     if (this.client.hasAccessToken) {
-                        return this.client.tokenLogin(this.client.token);
+                        return this.client.tokenLogin(this.client.Authentication.token);
                     }
                     return this.client.login(
                         this.client.email,
@@ -175,6 +190,7 @@ class Websocket {
      * events
      */
 
+    // @Todo tests
     onMessage(message: any): any {
         this.client.emit('raw_message', message);
         switch (message.event) {
@@ -240,6 +256,13 @@ class Websocket {
         this._socketUrl = value;
     }
 
+    get useTLS(): boolean {
+        return this._useTLS;
+    }
+
+    get tlsverify(): boolean {
+        return this._tlsverify;
+    }
 
     /**
      * helpers

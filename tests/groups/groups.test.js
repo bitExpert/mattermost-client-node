@@ -14,7 +14,7 @@ export default (Client) => describe('groups', () => {
             currentUser = userData;
             done();
         });
-        client.login(ADMIN.email, ADMIN.password, null);
+        client.Authentication.login(ADMIN.email, ADMIN.password, null);
     });
 
     afterAll(() => {

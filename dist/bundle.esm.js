@@ -49,7 +49,6 @@ var __assign = function() {
 var apiPrefix = '/api/v4';
 var Api = (function () {
     function Api(client) {
-        this._token = null;
         this.client = client;
     }
     Api.prototype.apiCall = function (method, path, params, callback, callbackParams, isForm) {
@@ -63,7 +62,7 @@ var Api = (function () {
             uri: this._getApiUrl(path),
             method: method,
             json: params,
-            rejectUnauthorized: this.client.tlsverify,
+            rejectUnauthorized: this.client.Websocket.tlsverify,
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
@@ -73,8 +72,8 @@ var Api = (function () {
         if (this.client.additionalHeaders) {
             options.headers = Object.assign(options.headers, __assign({}, this.client.additionalHeaders));
         }
-        if (this._token) {
-            options.headers.Authorization = "BEARER " + this._token;
+        if (this.client.Authentication.token) {
+            options.headers.Authorization = "BEARER " + this.client.Authentication.token;
         }
         if (this.client.httpProxy) {
             options.proxy = this.client.httpProxy;
@@ -109,18 +108,93 @@ var Api = (function () {
         });
     };
     Api.prototype._getApiUrl = function (path) {
-        var protocol = this.client.useTLS ? 'https://' : 'http://';
+        var protocol = this.client.Websocket.useTLS ? 'https://' : 'http://';
         var port = this.client.options.httpPort ? ":" + this.client.options.httpPort : '';
         return protocol + this.client.host + port + apiPrefix + path;
     };
-    Object.defineProperty(Api.prototype, "token", {
+    return Api;
+}());
+
+var Authentication = (function () {
+    function Authentication(client, usersRoute) {
+        this._authenticated = false;
+        this._hasAccessToken = false;
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    Authentication.prototype.initBindings = function () {
+        this._onLogin = this._onLogin.bind(this);
+        this._onRevoke = this._onRevoke.bind(this);
+    };
+    Authentication.prototype.login = function (email, password, mfaToken) {
+        this._hasAccessToken = false;
+        this.client.email = email;
+        this.client.password = password;
+        this._mfaToken = mfaToken;
+        this.client.logger.info('Logging in...');
+        return this.client.Api.apiCall('POST', this.usersRoute + "/login", {
+            login_id: this.client.email,
+            password: this.client.password,
+            token: this._mfaToken,
+        }, this._onLogin);
+    };
+    Authentication.prototype.tokenLogin = function (token) {
+        this._token = token;
+        this._hasAccessToken = true;
+        this.client.logger.info('Logging in with personal access token...');
+        var uri = this.usersRoute + "/me";
+        return this.client.Api.apiCall('GET', uri, null, this._onLogin);
+    };
+    Authentication.prototype.revoke = function (userID) {
+        return this.client.Api.apiCall('POST', this.usersRoute + "/" + userID + "/sessions/revoke", {}, this._onRevoke);
+    };
+    Authentication.prototype._onLogin = function (data, headers) {
+        if (data) {
+            if (!data.id) {
+                this.client.logger.error('Login call failed', JSON.stringify(data));
+                this.client.emit('error', data);
+                this._authenticated = false;
+                this.client.Websocket.reconnecting = false;
+                return this.client.Websocket.reconnect();
+            }
+            this._authenticated = true;
+            if (!this._hasAccessToken) {
+                this._token = headers.token;
+            }
+            this.client.Websocket.socketUrl = this.client.Websocket.getSocketUrl();
+            this.client.logger.info("Websocket URL: " + this.client.Websocket.socketUrl);
+            this.client.me = data;
+            this.client.emit('loggedIn', this.client.me);
+            this.client.User.getMe();
+            this.client.User.getPreferences();
+            return this.client.Team.getTeams();
+        }
+        this.client.emit('error', data);
+        this._authenticated = false;
+        return this.client.Websocket.reconnect();
+    };
+    Authentication.prototype._onRevoke = function (data) {
+        return this.client.emit('sessionRevoked', data);
+    };
+    Object.defineProperty(Authentication.prototype, "authenticated", {
+        set: function (value) {
+            this._authenticated = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Authentication.prototype, "token", {
+        get: function () {
+            return this._token;
+        },
         set: function (value) {
             this._token = value;
         },
         enumerable: true,
         configurable: true
     });
-    return Api;
+    return Authentication;
 }());
 
 var Channel = (function () {
@@ -688,6 +762,8 @@ var Websocket = (function () {
     function Websocket(client) {
         this.apiPrefix = '/api/v4';
         this._ws = null;
+        this._useTLS = false;
+        this._tlsverify = false;
         this._connected = false;
         this._connecting = false;
         this._reconnecting = false;
@@ -703,6 +779,14 @@ var Websocket = (function () {
         if (this.client.options.autoReconnect != null) {
             this._autoReconnect = this.client.options.autoReconnect;
         }
+        this._useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
+        if (typeof this.client.options.useTLS !== 'undefined') {
+            this._useTLS = this.client.options.useTLS;
+        }
+        this._tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
+        if (typeof this.client.options.tlsverify !== 'undefined') {
+            this._tlsverify = this.client.options.tlsverify;
+        }
     }
     Websocket.prototype.connect = function () {
         var _this = this;
@@ -711,7 +795,7 @@ var Websocket = (function () {
         }
         this._connecting = true;
         this.client.logger.info('Connecting...');
-        var options = { rejectUnauthorized: this.client.tlsverify };
+        var options = { rejectUnauthorized: this._tlsverify };
         if (this.client.httpProxy) {
             options.agent = new HttpsProxyAgent(this.client.httpProxy);
         }
@@ -734,7 +818,7 @@ var Websocket = (function () {
             var challenge = {
                 action: 'authentication_challenge',
                 data: {
-                    token: _this.client.token,
+                    token: _this.client.Authentication.token,
                 },
             };
             _this.client.logger.info('Sending challenge...');
@@ -748,7 +832,7 @@ var Websocket = (function () {
                 }
                 if (_this._lastPong && (Date.now() - _this._lastPong) > (2 * _this._pingInterval)) {
                     _this.client.logger.error('Last pong is too old: %d', (Date.now() - _this._lastPong) / 1000);
-                    _this.client.authenticated = false;
+                    _this.client.Authentication.authenticated = false;
                     _this._connected = false;
                     _this.reconnect();
                     return;
@@ -781,7 +865,7 @@ var Websocket = (function () {
                 clearInterval(this._pongTimeout);
                 this._pongTimeout = null;
             }
-            this.client.authenticated = false;
+            this.client.Authentication.authenticated = false;
             if (this._ws) {
                 this._ws.close();
             }
@@ -791,7 +875,7 @@ var Websocket = (function () {
             return setTimeout(function () {
                 _this.client.logger.info('Attempting reconnect');
                 if (_this.client.hasAccessToken) {
-                    return _this.client.tokenLogin(_this.client.token);
+                    return _this.client.tokenLogin(_this.client.Authentication.token);
                 }
                 return _this.client.login(_this.client.email, _this.client.password, _this.client.mfaToken);
             }, timeout);
@@ -870,6 +954,20 @@ var Websocket = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(Websocket.prototype, "useTLS", {
+        get: function () {
+            return this._useTLS;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Websocket.prototype, "tlsverify", {
+        get: function () {
+            return this._tlsverify;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Websocket.prototype._send = function (message) {
         var messageExt = __assign({}, message);
         if (!this._connected) {
@@ -900,20 +998,9 @@ var Client = (function (_super) {
         _this.group = group;
         _this.options = options || { wssPort: 443, httpPort: 80 };
         _this.additionalHeaders = {};
-        _this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
-        if (typeof options.useTLS !== 'undefined') {
-            _this.useTLS = options.useTLS;
-        }
-        _this.tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
-        if (typeof options.tlsverify !== 'undefined') {
-            _this.tlsverify = options.tlsverify;
-        }
         if (typeof options.additionalHeaders === 'object') {
             _this.additionalHeaders = options.additionalHeaders;
         }
-        _this.authenticated = false;
-        _this.hasAccessToken = false;
-        _this.token = null;
         _this.me = null;
         _this.httpProxy = (_this.options.httpProxy != null) ? _this.options.httpProxy : false;
         process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
@@ -942,7 +1029,6 @@ var Client = (function (_super) {
             _this.logger = Log;
         }
         _this.initModules();
-        _this.initBindings();
         if (typeof options.messageMaxRunes !== 'undefined') {
             _this.Post.messageMaxRunes = options.messageMaxRunes;
         }
@@ -950,67 +1036,12 @@ var Client = (function (_super) {
     }
     Client.prototype.initModules = function () {
         this.Api = new Api(this);
+        this.Authentication = new Authentication(this, usersRoute);
         this.Channel = new Channel(this, usersRoute);
         this.Post = new Post(this);
         this.User = new User(this, usersRoute);
         this.Team = new Team(this, usersRoute);
         this.Websocket = new Websocket(this);
-    };
-    Client.prototype.initBindings = function () {
-        this._onLogin = this._onLogin.bind(this);
-        this._onRevoke = this._onRevoke.bind(this);
-    };
-    Client.prototype.login = function (email, password, mfaToken) {
-        this.hasAccessToken = false;
-        this.email = email;
-        this.password = password;
-        this.mfaToken = mfaToken;
-        this.logger.info('Logging in...');
-        return this.Api.apiCall('POST', usersRoute + "/login", {
-            login_id: this.email,
-            password: this.password,
-            token: this.mfaToken,
-        }, this._onLogin);
-    };
-    Client.prototype.revoke = function (userID) {
-        return this.Api.apiCall('POST', usersRoute + "/" + userID + "/sessions/revoke", {}, this._onRevoke);
-    };
-    Client.prototype.tokenLogin = function (token) {
-        this.token = token;
-        this.Api.token = token;
-        this.hasAccessToken = true;
-        this.logger.info('Logging in with personal access token...');
-        var uri = usersRoute + "/me";
-        return this.Api.apiCall('GET', uri, null, this._onLogin);
-    };
-    Client.prototype._onLogin = function (data, headers) {
-        if (data) {
-            if (!data.id) {
-                this.logger.error('Login call failed', JSON.stringify(data));
-                this.emit('error', data);
-                this.authenticated = false;
-                this.Websocket.reconnecting = false;
-                return this.Websocket.reconnect();
-            }
-            this.authenticated = true;
-            if (!this.hasAccessToken) {
-                this.token = headers.token;
-                this.Api.token = headers.token;
-            }
-            this.Websocket.socketUrl = this.Websocket.getSocketUrl();
-            this.logger.info("Websocket URL: " + this.Websocket.socketUrl);
-            this.me = data;
-            this.emit('loggedIn', this.me);
-            this.User.getMe();
-            this.User.getPreferences();
-            return this.Team.getTeams();
-        }
-        this.emit('error', data);
-        this.authenticated = false;
-        return this.Websocket.reconnect();
-    };
-    Client.prototype._onRevoke = function (data) {
-        return this.emit('sessionRevoked', data);
     };
     Client.prototype.dialog = function (triggerId, url, dialog) {
         var _this = this;

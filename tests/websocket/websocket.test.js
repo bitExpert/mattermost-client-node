@@ -14,7 +14,7 @@ export default (Client) => describe('websocket', () => {
             client.on('connected', () => done());
             client.Websocket.connect();
         });
-        client.login(ADMIN.email, ADMIN.password, null);
+        client.Authentication.login(ADMIN.email, ADMIN.password, null);
     });
 
     afterAll(() => {

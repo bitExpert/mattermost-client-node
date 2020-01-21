@@ -27,7 +27,7 @@ export default (Client) => describe('options', () => {
                 'some-header': 'some-header-value',
             },
         });
-        const requestObj = client.login(ADMIN.email, ADMIN.password, null);
+        const requestObj = client.Authentication.login(ADMIN.email, ADMIN.password, null);
         expect(requestObj.headers).toHaveProperty('some-header');
         expect(requestObj.headers).toHaveProperty('some-header', 'some-header-value');
         done();

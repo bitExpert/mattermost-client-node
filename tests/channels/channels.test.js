@@ -13,7 +13,7 @@ export default (Client) => describe('channels', () => {
         client.on('loggedIn', () => {
             done();
         });
-        client.login(ADMIN.email, ADMIN.password, null);
+        client.Authentication.login(ADMIN.email, ADMIN.password, null);
     });
 
     afterAll(() => {
