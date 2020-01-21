@@ -1,9 +1,9 @@
-import request from 'request';
-import WebSocket from 'isomorphic-ws';
-import TextEncoding from 'text-encoding';
 import Log from 'log';
-import querystring from 'querystring';
 import { EventEmitter } from 'events';
+import TextEncoding from 'text-encoding';
+import request from 'request';
+import querystring from 'querystring';
+import WebSocket from 'isomorphic-ws';
 import HttpsProxyAgent from 'https-proxy-agent';
 
 /*! *****************************************************************************
@@ -46,399 +46,357 @@ var __assign = function() {
     return __assign.apply(this, arguments);
 };
 
-var User = {
-    getAllUsers: function () {
-        return this.users;
-    },
-};
-
 var apiPrefix = '/api/v4';
-var usersRoute = '/users';
-var defaultPingInterval = 60000;
-var Client = (function (_super) {
-    __extends(Client, _super);
-    function Client(host, group, options) {
-        var _this = _super.call(this) || this;
-        _this.host = host;
-        _this.group = group;
-        _this.options = options || { wssPort: 443, httpPort: 80 };
-        _this.messageMaxRunes = 4000;
-        _this.additionalHeaders = {};
-        _this.getAllUsers = User.getAllUsers;
-        _this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
-        if (typeof options.useTLS !== 'undefined') {
-            _this.useTLS = options.useTLS;
+var Api = (function () {
+    function Api(client) {
+        this._additionalHeaders = {};
+        this.client = client;
+        if (typeof this.client.options.additionalHeaders === 'object') {
+            this._additionalHeaders = this.client.options.additionalHeaders;
         }
-        _this.tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
-        if (typeof options.tlsverify !== 'undefined') {
-            _this.tlsverify = options.tlsverify;
-        }
-        if (typeof options.messageMaxRunes !== 'undefined') {
-            _this.messageMaxRunes = options.messageMaxRunes;
-        }
-        if (typeof options.additionalHeaders === 'object') {
-            _this.additionalHeaders = options.additionalHeaders;
-        }
-        _this.authenticated = false;
-        _this.connected = false;
-        _this.hasAccessToken = false;
-        _this.token = null;
-        _this.self = null;
-        _this.channels = {};
-        _this.users = {};
-        _this.teams = {};
-        _this.teamID = null;
-        _this.ws = null;
-        _this._messageID = 0;
-        _this._pending = {};
-        _this._pingInterval = (_this.options.pingInterval != null)
-            ? _this.options.pingInterval
-            : defaultPingInterval;
-        _this.autoReconnect = (_this.options.autoReconnect != null)
-            ? _this.options.autoReconnect
-            : true;
-        _this.httpProxy = (_this.options.httpProxy != null) ? _this.options.httpProxy : false;
-        _this._connecting = false;
-        _this._reconnecting = false;
-        _this._connAttempts = 0;
-        process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
-        if (typeof options.logger !== 'undefined') {
-            switch (options.logger) {
-                case 'noop':
-                    _this.logger = {
-                        debug: function () {
-                        },
-                        info: function () {
-                        },
-                        notice: function () {
-                        },
-                        warning: function () {
-                        },
-                        error: function () {
-                        },
-                    };
-                    break;
-                default:
-                    _this.logger = options.logger;
-                    break;
-            }
-        }
-        else {
-            _this.logger = Log;
-        }
-        _this._onLogin = _this._onLogin.bind(_this);
-        _this._onCreateTeam = _this._onCreateTeam.bind(_this);
-        _this._onCheckIfTeamExists = _this._onCheckIfTeamExists.bind(_this);
-        _this._onRevoke = _this._onRevoke.bind(_this);
-        _this._onCreateTeam = _this._onCreateTeam.bind(_this);
-        _this._onCheckIfTeamExists = _this._onCheckIfTeamExists.bind(_this);
-        _this._onAddUserToTeam = _this._onAddUserToTeam.bind(_this);
-        _this._onCreateUser = _this._onCreateUser.bind(_this);
-        _this._onLoadUsers = _this._onLoadUsers.bind(_this);
-        _this._onLoadUser = _this._onLoadUser.bind(_this);
-        _this._onChannels = _this._onChannels.bind(_this);
-        _this._onUsersOfChannel = _this._onUsersOfChannel.bind(_this);
-        _this._onMessages = _this._onMessages.bind(_this);
-        _this._onPreferences = _this._onPreferences.bind(_this);
-        _this._onMe = _this._onMe.bind(_this);
-        _this._onTeams = _this._onTeams.bind(_this);
-        _this._onTeamsByName = _this._onTeamsByName.bind(_this);
-        _this._onUnreadsForChannels = _this._onUnreadsForChannels.bind(_this);
-        _this._onChannelLastViewed = _this._onChannelLastViewed.bind(_this);
-        _this._onMembersFromChannels = _this._onMembersFromChannels.bind(_this);
-        return _this;
     }
-    Client.prototype.login = function (email, password, mfaToken) {
-        this.hasAccessToken = false;
-        this.email = email;
-        this.password = password;
-        this.mfaToken = mfaToken;
-        this.logger.info('Logging in...');
-        return this._apiCall('POST', usersRoute + "/login", {
-            login_id: this.email,
-            password: this.password,
-            token: this.mfaToken,
+    Api.prototype.apiCall = function (method, path, params, callback, callbackParams, isForm) {
+        if (callbackParams === void 0) { callbackParams = {}; }
+        if (isForm === void 0) { isForm = false; }
+        var postData = '';
+        if (params != null) {
+            postData = JSON.stringify(params);
+        }
+        var options = {
+            uri: this._getApiUrl(path),
+            method: method,
+            json: params,
+            rejectUnauthorized: this.client.Websocket.tlsverify,
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        };
+        if (this._additionalHeaders) {
+            options.headers = Object.assign(options.headers, __assign({}, this._additionalHeaders));
+        }
+        if (this.client.Authentication.token) {
+            options.headers.Authorization = "BEARER " + this.client.Authentication.token;
+        }
+        if (this.client.Websocket.httpProxy) {
+            options.proxy = this.client.Websocket.httpProxy;
+        }
+        if (isForm) {
+            options.headers['Content-Type'] = 'multipart/form-data';
+            delete options.headers['Content-Length'];
+            delete options.json;
+            options.formData = params;
+        }
+        this.client.logger.debug(method + " " + path);
+        this.client.logger.info("api url:" + options.uri);
+        return request(options, function (error, res, value) {
+            if (error) {
+                if (callback) {
+                    return callback({ id: null, error: error.errno }, {}, callbackParams);
+                }
+            }
+            else if (callback) {
+                if ((res.statusCode === 200) || (res.statusCode === 201)) {
+                    var safeValue = typeof value === 'string'
+                        ? JSON.parse(value)
+                        : value;
+                    return callback(safeValue, res.headers, callbackParams);
+                }
+                return callback({
+                    id: null,
+                    error: "API response: " + res.statusCode + " " + JSON.stringify(value),
+                }, res.headers, callbackParams);
+            }
+            return false;
+        });
+    };
+    Api.prototype._getApiUrl = function (path) {
+        var protocol = this.client.Websocket.useTLS ? 'https://' : 'http://';
+        var port = this.client.options.httpPort ? ":" + this.client.options.httpPort : '';
+        return protocol + this.client.host + port + apiPrefix + path;
+    };
+    return Api;
+}());
+
+var Authentication = (function () {
+    function Authentication(client, usersRoute) {
+        this._authenticated = false;
+        this._hasAccessToken = false;
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    Authentication.prototype.initBindings = function () {
+        this._onLogin = this._onLogin.bind(this);
+        this._onRevoke = this._onRevoke.bind(this);
+    };
+    Authentication.prototype.login = function (email, password, mfaToken) {
+        this._hasAccessToken = false;
+        this._authEmail = email;
+        this._authPassword = password;
+        this._mfaToken = mfaToken;
+        this.client.logger.info('Logging in...');
+        return this.client.Api.apiCall('POST', this.usersRoute + "/login", {
+            login_id: this._authEmail,
+            password: this._authPassword,
+            token: this._mfaToken,
         }, this._onLogin);
     };
-    Client.prototype.revoke = function (userID) {
-        return this._apiCall('POST', usersRoute + "/" + userID + "/sessions/revoke", {}, this._onRevoke);
+    Authentication.prototype.tokenLogin = function (token) {
+        this._token = token;
+        this._hasAccessToken = true;
+        this.client.logger.info('Logging in with personal access token...');
+        var uri = this.usersRoute + "/me";
+        return this.client.Api.apiCall('GET', uri, null, this._onLogin);
     };
-    Client.prototype.createUser = function (user) {
-        var uri = usersRoute + "?iid=";
-        return this._apiCall('POST', uri, user, this._onCreateUser);
+    Authentication.prototype.revoke = function (userID) {
+        return this.client.Api.apiCall('POST', this.usersRoute + "/" + userID + "/sessions/revoke", {}, this._onRevoke);
     };
-    Client.prototype.createTeam = function (name, display_name, type) {
-        if (type === void 0) { type = 'I'; }
-        var uri = '/teams';
-        return this._apiCall('POST', uri, { name: name, display_name: display_name, type: type }, this._onCreateTeam);
-    };
-    Client.prototype.checkIfTeamExists = function (teamName) {
-        var uri = "/teams/name/" + teamName + "/exists";
-        return this._apiCall('GET', uri, null, this._onCheckIfTeamExists);
-    };
-    Client.prototype.addUserToTeam = function (user_id, team_id) {
-        var postData = {
-            team_id: team_id,
-            user_id: user_id,
-        };
-        var uri = "/teams/" + team_id + "/members";
-        return this._apiCall('POST', uri, postData, this._onAddUserToTeam);
-    };
-    Client.prototype.tokenLogin = function (token) {
-        this.token = token;
-        this.hasAccessToken = true;
-        this.logger.info('Logging in with personal access token...');
-        var uri = usersRoute + "/me";
-        return this._apiCall('GET', uri, null, this._onLogin);
-    };
-    Client.prototype._onLogin = function (data, headers) {
+    Authentication.prototype._onLogin = function (data, headers) {
         if (data) {
             if (!data.id) {
-                this.logger.error('Login call failed', JSON.stringify(data));
-                this.emit('error', data);
-                this.authenticated = false;
-                this._reconnecting = false;
-                return this.reconnect();
+                this.client.logger.error('Login call failed', JSON.stringify(data));
+                this.client.emit('error', data);
+                this._authenticated = false;
+                this.client.Websocket.reconnecting = false;
+                return this.client.Websocket.reconnect();
             }
-            this.authenticated = true;
-            if (!this.hasAccessToken) {
-                this.token = headers.token;
+            this._authenticated = true;
+            if (!this._hasAccessToken) {
+                this._token = headers.token;
             }
-            this.socketUrl = this._getSocketUrl();
-            this.logger.info("Websocket URL: " + this.socketUrl);
-            this.self = data;
-            this.emit('loggedIn', this.self);
-            this.getMe();
-            this.getPreferences();
-            return this.getTeams();
+            this.client.Websocket.socketUrl = this.client.Websocket.getSocketUrl();
+            this.client.logger.info("Websocket URL: " + this.client.Websocket.socketUrl);
+            this.client.me = data;
+            this.client.emit('loggedIn', this.client.me);
+            this.client.User.getMe();
+            this.client.User.getPreferences();
+            return this.client.Team.getTeams();
         }
-        this.emit('error', data);
-        this.authenticated = false;
-        return this.reconnect();
+        this.client.emit('error', data);
+        this._authenticated = false;
+        return this.client.Websocket.reconnect();
     };
-    Client.prototype._getSocketUrl = function () {
-        var protocol = this.useTLS ? 'wss://' : 'ws://';
-        var httpPort = this.options.httpPort ? ":" + this.options.httpPort : '';
-        var wssPort = this.useTLS && this.options.wssPort ? ":" + this.options.wssPort : httpPort;
-        return protocol + this.host + wssPort + apiPrefix + "/websocket";
+    Authentication.prototype._onRevoke = function (data) {
+        return this.client.emit('sessionRevoked', data);
     };
-    Client.prototype._onRevoke = function (data) {
-        return this.emit('sessionRevoked', data);
+    Object.defineProperty(Authentication.prototype, "authenticated", {
+        set: function (value) {
+            this._authenticated = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Authentication.prototype, "token", {
+        get: function () {
+            return this._token;
+        },
+        set: function (value) {
+            this._token = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Authentication.prototype, "mfaToken", {
+        get: function () {
+            return this._mfaToken;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Authentication.prototype, "authEmail", {
+        get: function () {
+            return this._authEmail;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Authentication.prototype, "authPassword", {
+        get: function () {
+            return this._authPassword;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return Authentication;
+}());
+
+var Channel = (function () {
+    function Channel(client, usersRoute) {
+        this._channels = {};
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    Channel.prototype.initBindings = function () {
+        this._onChannels = this._onChannels.bind(this);
+        this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
+        this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
+        this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
     };
-    Client.prototype._onCreateTeam = function (data) {
-        if (!data.error) {
-            this.logger.info('Creating team...');
-            return this.emit('teamCreated', data);
+    Channel.prototype.loadChannels = function () {
+        var uri = "/users/me/teams/" + this.client.Team.teamID + "/channels";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onChannels);
+    };
+    Channel.prototype.getUserDirectMessageChannel = function (userID, callback) {
+        var channel = this.client.me.id + "__" + userID;
+        channel = this.findChannelByName(channel);
+        if (!channel) {
+            channel = userID + "__" + this.client.me.id;
+            channel = this.findChannelByName(channel);
         }
-        this.logger.error('Team creation failed', JSON.stringify(data));
-        return this.emit('error', data);
-    };
-    Client.prototype._onCheckIfTeamExists = function (data) {
-        if (!data.error) {
-            this.logger.info('Checking if team exists...');
-            return this.emit('teamChecked', data);
+        if (channel) {
+            if (callback != null) {
+                callback(channel);
+            }
+            return;
         }
-        this.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
-        return this.emit('error', data);
+        this.createDirectChannel(userID, callback);
     };
-    Client.prototype._onAddUserToTeam = function (data) {
-        if (!data.error) {
-            this.logger.info('Adding user to team...');
-            return this.emit('userAdded', data);
-        }
-        this.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
-        return this.emit('error', data);
+    Channel.prototype.loadUnreadsForChannels = function () {
+        var uri = '/users/me/teams/unread';
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onUnreadsForChannels);
     };
-    Client.prototype._onCreateUser = function (data) {
-        if (data.id) {
-            this.logger.info('Creating user...');
-            return this.emit('created', data);
-        }
-        this.logger.error('User creation failed', JSON.stringify(data));
-        return this.emit('error', data);
+    Channel.prototype.loadMembersFromChannels = function () {
+        var uri = "/users/me/teams/" + this.client.Team.teamID + "/channels/members";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
     };
-    Client.prototype._onLoadUsers = function (data, _headers, params) {
+    Channel.prototype.loadChannelLastViewed = function (channelId, prevChannelId) {
+        if (prevChannelId === void 0) { prevChannelId = null; }
+        var postData = {
+            channel_id: channelId,
+            prev_channel_id: prevChannelId,
+        };
+        var uri = '/channels/members/me/view';
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('POST', uri, postData, this._onChannelLastViewed);
+    };
+    Channel.prototype.createDirectChannel = function (userID, callback) {
         var _this = this;
-        if (data && !data.error) {
-            data.forEach(function (user) {
-                _this.users[user.id] = user;
-            });
-            this.logger.info("Found " + Object.keys(data).length + " profiles.");
-            this.emit('profilesLoaded', data);
-            if ((Object.keys(data).length > 200) && (params.page != null)) {
-                return this.loadUsers(params.page + 1);
-            }
-            return this.users;
-        }
-        this.logger.error('Failed to load profiles from server.');
-        return this.emit('error', { msg: 'failed to load profiles' });
+        var postData = [userID, this.client.me.id];
+        return this.client.Api.apiCall('POST', '/channels/direct', postData, function (data, _headers) {
+            _this.client.logger.info('Created Direct Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
     };
-    Client.prototype._onLoadUser = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.users[data.id] = data;
-            return this.emit('profilesLoaded', [data]);
-        }
-        return this.emit('error', { msg: 'failed to load profile' });
+    Channel.prototype.createGroupChannel = function (userIDs, callback) {
+        var _this = this;
+        return this.client.Api.apiCall('POST', '/channels/group', userIDs, function (data, _headers) {
+            _this.client.logger.info('Created Group Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
     };
-    Client.prototype._onChannels = function (data, _headers, _params) {
+    Channel.prototype.createPrivateChannel = function (privateChannel, callback) {
+        var _this = this;
+        return this.client.Api.apiCall('POST', '/channels', privateChannel, function (data, _headers) {
+            _this.client.logger.info('Created Private Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.addUserToChannel = function (privateChannel, callback) {
+        var _this = this;
+        var uri = "/channels/" + privateChannel.channel_id + "/members";
+        return this.client.Api.apiCall('POST', uri, privateChannel, function (data, _headers) {
+            _this.client.logger.info("Added User to Channel " + privateChannel.channel_id);
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.setChannelHeader = function (channelID, header) {
+        var _this = this;
+        var postData = {
+            channel_id: channelID,
+            channel_header: header,
+        };
+        return this.client.Api.apiCall('POST', this.client.Team.teamRoute() + "/channels/update_header", postData, function (_data, _headers) {
+            _this.client.logger.debug('Channel header updated.');
+            return true;
+        });
+    };
+    Channel.prototype.getAllChannels = function () {
+        return this._channels;
+    };
+    Channel.prototype.getChannelByID = function (id) {
+        return this._channels[id];
+    };
+    Channel.prototype._onChannels = function (data, _headers, _params) {
         var _this = this;
         if (data && !data.error) {
             data.forEach(function (channel) {
-                _this.channels[channel.id] = channel;
+                _this._channels[channel.id] = channel;
             });
-            this.logger.info("Found " + Object.keys(data).length + " subscribed channels.");
-            return this.emit('channelsLoaded', data);
+            this.client.logger.info("Found " + Object.keys(data).length + " subscribed channels.");
+            return this.client.emit('channelsLoaded', data);
         }
-        this.logger.error("Failed to get subscribed channels list from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get channel list' });
+        this.client.logger.error("Failed to get subscribed channels list from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get channel list' });
     };
-    Client.prototype._onUsersOfChannel = function (data, _headers, _params) {
+    Channel.prototype._onUnreadsForChannels = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " information about unreads.");
+            return this.client.emit('channelsUnreadsLoaded', data);
+        }
+        this.client.logger.error("Failed to get unreads of channels from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get unreads for channels' });
+    };
+    Channel.prototype._onMembersFromChannels = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " channels.");
+            return this.client.emit('membersFromChannelsLoaded', data);
+        }
+        this.client.logger.error("Failed to get messages from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get all members from channels' });
+    };
+    Channel.prototype._onChannelLastViewed = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " for last reads.");
+            return this.client.emit('channelLastViewedLoaded', data);
+        }
+        this.client.logger.error("Failed to get last reads of channel(s) from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get last reads for channel(s)' });
+    };
+    Object.defineProperty(Channel.prototype, "channels", {
+        get: function () {
+            return this._channels;
+        },
+        set: function (value) {
+            this._channels = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Channel.prototype.channelRoute = function (channelId) {
+        return this.client.Team.teamRoute() + "/channels/" + channelId;
+    };
+    Channel.prototype.findChannelByName = function (name) {
         var _this = this;
-        if (data && !data.error) {
-            Object.entries(data).forEach(function (channel) {
-                _this.channels[channel.id] = channel;
-            });
-            this.logger.info("Found " + Object.keys(data).length + " users.");
-            return this.emit('usersOfChannelLoaded', data);
+        var foundChannel = Object.keys(this._channels)
+            .find(function (channel) {
+            var channelName = _this._channels[channel].name;
+            var channelDisplayName = _this._channels[channel].display_name;
+            return channelName === name || channelDisplayName === name;
+        });
+        return foundChannel || null;
+    };
+    return Channel;
+}());
+
+var Post = (function () {
+    function Post(client) {
+        this._messageMaxRunes = 4000;
+        this.client = client;
+        if (typeof this.client.options.messageMaxRunes !== 'undefined') {
+            this._messageMaxRunes = this.client.options.messageMaxRunes;
         }
-        this.logger.error("Failed to get channel users from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get channel users' });
+        this.initBindings();
+    }
+    Post.prototype.initBindings = function () {
+        this._onMessages = this._onMessages.bind(this);
     };
-    Client.prototype._onMessages = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " messages.");
-            return this.emit('messagesLoaded', data);
-        }
-        this.logger.error("Failed to get messages from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get messages' });
-    };
-    Client.prototype._onUnreadsForChannels = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " information about unreads.");
-            return this.emit('channelsUnreadsLoaded', data);
-        }
-        this.logger.error("Failed to get unreads of channels from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get unreads for channels' });
-    };
-    Client.prototype._onChannelLastViewed = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " for last reads.");
-            return this.emit('channelLastViewedLoaded', data);
-        }
-        this.logger.error("Failed to get last reads of channel(s) from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get last reads for channel(s)' });
-    };
-    Client.prototype._onMembersFromChannels = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " channels.");
-            return this.emit('membersFromChannelsLoaded', data);
-        }
-        this.logger.error("Failed to get messages from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get all members from channels' });
-    };
-    Client.prototype._onPreferences = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.preferences = data;
-            this.emit('preferencesLoaded', data);
-            return this.logger.info('Loaded Preferences...');
-        }
-        this.logger.error("Failed to load Preferences..." + data.error);
-        return this.reconnect();
-    };
-    Client.prototype._onMe = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.me = data;
-            this.emit('meLoaded', data);
-            return this.logger.info('Loaded Me...');
-        }
-        this.logger.error("Failed to load Me..." + data.error);
-        return this.reconnect();
-    };
-    Client.prototype._onTeams = function (data, _headers, _params) {
-        var _this = this;
-        if (data && !data.error) {
-            this.teams = data;
-            this.emit('teamsLoaded', data);
-            if (!data.length) {
-                return this.teams;
-            }
-            this.logger.info("Found " + Object.keys(this.teams).length + " teams.");
-            this.teams
-                .find(function (team) {
-                var isTeamFound = team.name.toLowerCase() === _this.group.toLowerCase();
-                _this.logger.debug("Testing " + team.name + " == " + _this.group);
-                if (isTeamFound) {
-                    _this.teamID = team.id;
-                    _this.logger.info("Found team! " + team.id);
-                }
-                return isTeamFound;
-            });
-            this.loadUsers();
-            return this.loadChannels();
-        }
-        this.logger.error('Failed to load Teams...');
-        return this.reconnect();
-    };
-    Client.prototype._onTeamsByName = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " channels.");
-            return this.emit('teamsByNameLoaded', data);
-        }
-        this.logger.error("Failed to get team by name from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get team by name' });
-    };
-    Client.prototype.channelRoute = function (channelId) {
-        return this.teamRoute() + "/channels/" + channelId;
-    };
-    Client.prototype.teamRoute = function () {
-        return usersRoute + "/me/teams/" + this.teamID;
-    };
-    Client.prototype.getMe = function () {
-        var uri = usersRoute + "/me";
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onMe);
-    };
-    Client.prototype.getPreferences = function () {
-        var uri = usersRoute + "/me/preferences";
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onPreferences);
-    };
-    Client.prototype.getTeams = function () {
-        var uri = usersRoute + "/me/teams";
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onTeams);
-    };
-    Client.prototype.getTeamByName = function (teamName) {
-        var uri = "/teams/name/" + teamName;
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onTeamsByName);
-    };
-    Client.prototype.loadUsers = function (page, byTeam) {
-        if (page === void 0) { page = 0; }
-        if (byTeam === void 0) { byTeam = true; }
-        var uri = "/users?page=" + page + "&per_page=200";
-        if (byTeam) {
-            uri += "&in_team=" + this.teamID;
-        }
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onLoadUsers, { page: page });
-    };
-    Client.prototype.loadUser = function (userId) {
-        var uri = "/users/" + userId;
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onLoadUser, {});
-    };
-    Client.prototype.loadChannels = function () {
-        var uri = "/users/me/teams/" + this.teamID + "/channels";
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onChannels);
-    };
-    Client.prototype.loadUsersFromChannel = function (channelId) {
-        var uri = "/channels/" + channelId + "/members";
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onUsersOfChannel);
-    };
-    Client.prototype.loadMessagesFromChannel = function (channelId, options) {
+    Post.prototype.loadMessagesFromChannel = function (channelId, options) {
         if (options === void 0) { options = {}; }
         var uri = "/channels/" + channelId + "/posts";
         var allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
@@ -457,99 +415,473 @@ var Client = (function (_super) {
             params.per_page = 30;
         }
         uri += "?" + querystring.stringify(params);
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, params, this._onMessages);
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, params, this._onMessages);
     };
-    Client.prototype.loadChannelLastViewed = function (channelId, prevChannelId) {
-        if (prevChannelId === void 0) { prevChannelId = null; }
+    Post.prototype.postMessage = function (msg, channelID) {
+        var _this = this;
         var postData = {
-            channel_id: channelId,
-            prev_channel_id: prevChannelId,
+            message: msg,
+            file_ids: [],
+            create_at: 0,
+            user_id: this.client.me.id,
+            channel_id: channelID,
         };
-        var uri = '/channels/members/me/view';
-        this.logger.info("Loading " + uri);
-        return this._apiCall('POST', uri, postData, this._onChannelLastViewed);
+        if (typeof msg === 'string') {
+            postData.message = msg;
+        }
+        else {
+            postData.message = msg.message;
+            if (msg.props) {
+                postData.props = msg.props;
+            }
+            if (msg.file_ids) {
+                postData.file_ids = msg.file_ids;
+            }
+        }
+        var chunks = this._chunkMessage(postData.message);
+        postData.message = chunks.shift();
+        return this.client.Api.apiCall('POST', '/posts', postData, function (_data, _headers) {
+            _this.client.logger.debug('Posted message.');
+            if ((chunks != null ? chunks.length : undefined) > 0) {
+                var message = chunks.join();
+                var chunksLenght = chunks ? chunks.length : undefined;
+                _this.client.logger.debug("Recursively posting remainder of message: (" + chunksLenght + ")");
+                return _this.postMessage(message, channelID);
+            }
+            return true;
+        });
     };
-    Client.prototype.loadUnreadsForChannels = function () {
-        var uri = '/users/me/teams/unread';
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onUnreadsForChannels);
+    Post.prototype.customMessage = function (postData, channelID) {
+        var _this = this;
+        var chunks;
+        var postDataExt = __assign({}, postData);
+        if (postDataExt.message != null) {
+            chunks = this._chunkMessage(postData.message);
+            postDataExt.message = chunks.shift();
+        }
+        postDataExt.channel_id = channelID;
+        return this.client.Api.apiCall('POST', '/posts', postData, function (_data, _headers) {
+            _this.client.logger.debug('Posted custom message.');
+            if ((chunks != null ? chunks.length : undefined) > 0) {
+                _this.client.logger.debug("Recursively posting remainder of customMessage: (" + chunks.length + ")");
+                postDataExt.message = chunks.join();
+                return _this.customMessage(postData, channelID);
+            }
+            return true;
+        });
     };
-    Client.prototype.loadMembersFromChannels = function () {
-        var uri = "/users/me/teams/" + this.teamID + "/channels/members";
-        this.logger.info("Loading " + uri);
-        return this._apiCall('GET', uri, null, this._onMembersFromChannels);
+    Post.prototype.editPost = function (postId, msg) {
+        var _this = this;
+        var postData = msg;
+        if (typeof msg === 'string') {
+            postData = {
+                id: postId,
+                message: msg,
+            };
+        }
+        return this.client.Api.apiCall('PUT', "/posts/" + postId, postData, function (_data, _headers) {
+            _this.client.logger.debug('Edited post');
+        });
     };
-    Client.prototype.connect = function () {
+    Post.prototype.uploadFile = function (channelId, file, callback) {
+        var _this = this;
+        var formData = {
+            channel_id: channelId,
+            files: file,
+        };
+        return this.client.Api.apiCall('POST', '/files', formData, function (data, _headers) {
+            _this.client.logger.debug('Posted file');
+            return callback(data);
+        }, {}, true);
+    };
+    Post.prototype.react = function (messageID, emoji) {
+        var _this = this;
+        var postData = {
+            user_id: this.client.me.id,
+            post_id: messageID,
+            emoji_name: emoji,
+            create_at: 0,
+        };
+        return this.client.Api.apiCall('POST', '/reactions', postData, function (_data, _headers) {
+            _this.client.logger.debug('Created reaction');
+        });
+    };
+    Post.prototype.unreact = function (messageID, emoji) {
+        var _this = this;
+        var uri = "/users/me/posts/" + messageID + "/reactions/" + emoji;
+        return this.client.Api.apiCall('DELETE', uri, [], function (_data, _headers) {
+            _this.client.logger.debug('Deleted reaction');
+        });
+    };
+    Post.prototype._onMessages = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " messages.");
+            return this.client.emit('messagesLoaded', data);
+        }
+        this.client.logger.error("Failed to get messages from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get messages' });
+    };
+    Post.prototype._chunkMessage = function (msg) {
+        if (!msg) {
+            return [''];
+        }
+        return msg.match(new RegExp("(.|[\r\n]){1," + this._messageMaxRunes + "}", 'g'));
+    };
+    return Post;
+}());
+
+var Team = (function () {
+    function Team(client, usersRoute) {
+        this._teams = {};
+        this._teamID = null;
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    Team.prototype.initBindings = function () {
+        this._onTeams = this._onTeams.bind(this);
+        this._onTeamsByName = this._onTeamsByName.bind(this);
+        this._onCreateTeam = this._onCreateTeam.bind(this);
+        this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
+        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
+    };
+    Team.prototype.getTeams = function () {
+        var uri = this.usersRoute + "/me/teams";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onTeams);
+    };
+    Team.prototype.getTeamByName = function (teamName) {
+        var uri = "/teams/name/" + teamName;
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onTeamsByName);
+    };
+    Team.prototype.checkIfTeamExists = function (teamName) {
+        var uri = "/teams/name/" + teamName + "/exists";
+        return this.client.Api.apiCall('GET', uri, null, this._onCheckIfTeamExists);
+    };
+    Team.prototype.createTeam = function (name, display_name, type) {
+        if (type === void 0) { type = 'I'; }
+        var uri = '/teams';
+        return this.client.Api.apiCall('POST', uri, { name: name, display_name: display_name, type: type }, this._onCreateTeam);
+    };
+    Team.prototype.addUserToTeam = function (user_id, team_id) {
+        var postData = {
+            team_id: team_id,
+            user_id: user_id,
+        };
+        var uri = "/teams/" + team_id + "/members";
+        return this.client.Api.apiCall('POST', uri, postData, this._onAddUserToTeam);
+    };
+    Team.prototype._onTeams = function (data, _headers, _params) {
+        var _this = this;
+        if (data && !data.error) {
+            this._teams = data;
+            this.client.emit('teamsLoaded', data);
+            if (!data.length) {
+                return this._teams;
+            }
+            this.client.logger.info("Found " + Object.keys(this._teams).length + " teams.");
+            this._teams
+                .find(function (team) {
+                var isTeamFound = team.name.toLowerCase() === _this.client.group.toLowerCase();
+                _this.client.logger.debug("Testing " + team.name + " == " + _this.client.group);
+                if (isTeamFound) {
+                    _this._teamID = team.id;
+                    _this.client.logger.info("Found team! " + team.id);
+                }
+                return isTeamFound;
+            });
+            this.client.User.loadUsers();
+            return this.client.Channel.loadChannels();
+        }
+        this.client.logger.error('Failed to load Teams...');
+        return this.client.reconnect();
+    };
+    Team.prototype._onTeamsByName = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " channels.");
+            return this.client.emit('teamsByNameLoaded', data);
+        }
+        this.client.logger.error("Failed to get team by name from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get team by name' });
+    };
+    Team.prototype._onCreateTeam = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Creating team...');
+            return this.client.emit('teamCreated', data);
+        }
+        this.client.logger.error('Team creation failed', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Team.prototype._onAddUserToTeam = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Adding user to team...');
+            return this.client.emit('userAdded', data);
+        }
+        this.client.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Team.prototype._onCheckIfTeamExists = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Checking if team exists...');
+            return this.client.emit('teamChecked', data);
+        }
+        this.client.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Object.defineProperty(Team.prototype, "teamID", {
+        get: function () {
+            return this._teamID;
+        },
+        set: function (value) {
+            this._teamID = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Team.prototype.teamRoute = function () {
+        return this.usersRoute + "/me/teams/" + this.teamID;
+    };
+    return Team;
+}());
+
+var User = (function () {
+    function User(client, usersRoute) {
+        this._users = {};
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    User.prototype.initBindings = function () {
+        this._onMe = this._onMe.bind(this);
+        this._onLoadUsers = this._onLoadUsers.bind(this);
+        this._onLoadUser = this._onLoadUser.bind(this);
+        this._onCreateUser = this._onCreateUser.bind(this);
+        this._onPreferences = this._onPreferences.bind(this);
+        this._onUsersOfChannel = this._onUsersOfChannel.bind(this);
+    };
+    User.prototype.getMe = function () {
+        var uri = this.usersRoute + "/me";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onMe);
+    };
+    User.prototype.loadUsers = function (page, byTeam) {
+        if (page === void 0) { page = 0; }
+        if (byTeam === void 0) { byTeam = true; }
+        var uri = "/users?page=" + page + "&per_page=200";
+        if (byTeam) {
+            uri += "&in_team=" + this.client.Team.teamID;
+        }
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onLoadUsers, { page: page });
+    };
+    User.prototype.loadUser = function (userId) {
+        var uri = "/users/" + userId;
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onLoadUser, {});
+    };
+    User.prototype.loadUsersFromChannel = function (channelId) {
+        var uri = "/channels/" + channelId + "/members";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onUsersOfChannel);
+    };
+    User.prototype.getPreferences = function () {
+        var uri = this.usersRoute + "/me/preferences";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onPreferences);
+    };
+    User.prototype.createUser = function (user) {
+        var uri = this.usersRoute + "?iid=";
+        return this.client.Api.apiCall('POST', uri, user, this._onCreateUser);
+    };
+    User.prototype.getUserByID = function (id) {
+        return this._users[id];
+    };
+    User.prototype.getUserByEmail = function (email) {
+        return Object.values(this._users)
+            .find(function (user) { return user.email === email; });
+    };
+    User.prototype.getAllUsers = function () {
+        return this._users;
+    };
+    User.prototype._onMe = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.me = data;
+            this.client.emit('meLoaded', data);
+            return this.client.logger.info('Loaded Me...');
+        }
+        this.client.logger.error("Failed to load Me..." + data.error);
+        return this.client.reconnect();
+    };
+    User.prototype._onLoadUsers = function (data, _headers, params) {
+        var _this = this;
+        if (data && !data.error) {
+            data.forEach(function (user) {
+                _this._users[user.id] = user;
+            });
+            this.client.logger.info("Found " + Object.keys(data).length + " profiles.");
+            this.client.emit('profilesLoaded', data);
+            if ((Object.keys(data).length > 200) && (params.page != null)) {
+                return this.loadUsers(params.page + 1);
+            }
+            return this._users;
+        }
+        this.client.logger.error('Failed to load profiles from server.');
+        return this.client.emit('error', { msg: 'failed to load profiles' });
+    };
+    User.prototype._onLoadUser = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this._users[data.id] = data;
+            return this.client.emit('profilesLoaded', [data]);
+        }
+        return this.client.emit('error', { msg: 'failed to load profile' });
+    };
+    User.prototype._onCreateUser = function (data) {
+        if (data.id) {
+            this.client.logger.info('Creating user...');
+            return this.client.emit('created', data);
+        }
+        this.client.logger.error('User creation failed', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    User.prototype._onUsersOfChannel = function (data, _headers, _params) {
+        var _this = this;
+        if (data && !data.error) {
+            Object.entries(data).forEach(function (channel) {
+                _this.client.Channel.channels[channel.id] = channel;
+            });
+            this.client.logger.info("Found " + Object.keys(data).length + " users.");
+            return this.client.emit('usersOfChannelLoaded', data);
+        }
+        this.client.logger.error("Failed to get channel users from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get channel users' });
+    };
+    User.prototype._onPreferences = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this._userPreferences = data;
+            this.client.emit('preferencesLoaded', data);
+            return this.client.logger.info('Loaded Preferences...');
+        }
+        this.client.logger.error("Failed to load Preferences..." + data.error);
+        return this.client.reconnect();
+    };
+    Object.defineProperty(User.prototype, "users", {
+        get: function () {
+            return this._users;
+        },
+        set: function (value) {
+            this._users = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return User;
+}());
+
+var Websocket = (function () {
+    function Websocket(client) {
+        this.apiPrefix = '/api/v4';
+        this._ws = null;
+        this._useTLS = false;
+        this._tlsverify = false;
+        this._connected = false;
+        this._connecting = false;
+        this._reconnecting = false;
+        this._connAttempts = 0;
+        this._autoReconnect = true;
+        this._pingInterval = 60000;
+        this._messageID = 0;
+        this._pending = {};
+        this.client = client;
+        if (this.client.options.pingInterval != null) {
+            this._pingInterval = this.client.options.pingInterval;
+        }
+        if (this.client.options.autoReconnect != null) {
+            this._autoReconnect = this.client.options.autoReconnect;
+        }
+        this._useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
+        if (typeof this.client.options.useTLS !== 'undefined') {
+            this._useTLS = this.client.options.useTLS;
+        }
+        this._tlsverify = !(process.env.MATTERMOST_TLS_VERIFY || '').match(/^false|0|no|off$/i);
+        if (typeof this.client.options.tlsverify !== 'undefined') {
+            this._tlsverify = this.client.options.tlsverify;
+        }
+        this._httpProxy = (this.client.options.httpProxy != null)
+            ? this.client.options.httpProxy
+            : false;
+    }
+    Websocket.prototype.connect = function () {
         var _this = this;
         if (this._connecting) {
             return;
         }
         this._connecting = true;
-        this.logger.info('Connecting...');
-        var options = { rejectUnauthorized: this.tlsverify };
-        if (this.httpProxy) {
-            options.agent = new HttpsProxyAgent(this.httpProxy);
+        this.client.logger.info('Connecting...');
+        var options = { rejectUnauthorized: this._tlsverify };
+        if (this._httpProxy) {
+            options.agent = new HttpsProxyAgent(this._httpProxy);
         }
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
+        if (this._ws) {
+            this._ws.close();
+            this._ws = null;
         }
-        this.ws = new WebSocket(this.socketUrl, options);
-        this.ws.on('error', function (error) {
+        this._ws = new WebSocket(this._socketUrl, options);
+        this._ws.on('error', function (error) {
             _this._connecting = false;
-            return _this.emit('error', error);
+            return _this.client.emit('error', error);
         });
-        this.ws.on('open', function () {
+        this._ws.on('open', function () {
             _this._connecting = false;
             _this._reconnecting = false;
-            _this.connected = true;
-            _this.emit('connected');
+            _this._connected = true;
+            _this.client.emit('connected');
             _this._connAttempts = 0;
             _this._lastPong = Date.now();
             var challenge = {
                 action: 'authentication_challenge',
                 data: {
-                    token: _this.token,
+                    token: _this.client.Authentication.token,
                 },
             };
-            _this.logger.info('Sending challenge...');
+            _this.client.logger.info('Sending challenge...');
             _this._send(challenge);
-            _this.logger.info('Starting pinger...');
+            _this.client.logger.info('Starting pinger...');
             _this._pongTimeout = setInterval(function () {
-                if (!_this.connected) {
-                    _this.logger.error('Not connected in pongTimeout');
+                if (!_this._connected) {
+                    _this.client.logger.error('Not connected in pongTimeout');
                     _this.reconnect();
                     return;
                 }
                 if (_this._lastPong && (Date.now() - _this._lastPong) > (2 * _this._pingInterval)) {
-                    _this.logger.error('Last pong is too old: %d', (Date.now() - _this._lastPong) / 1000);
-                    _this.authenticated = false;
-                    _this.connected = false;
+                    _this.client.logger.error('Last pong is too old: %d', (Date.now() - _this._lastPong) / 1000);
+                    _this.client.Authentication.authenticated = false;
+                    _this._connected = false;
                     _this.reconnect();
                     return;
                 }
-                _this.logger.info('ping');
+                _this.client.logger.info('ping');
                 _this._send({ action: 'ping' });
             }, _this._pingInterval);
             return _this._pongTimeout;
         });
-        this.ws.on('message', function (data, _flags) {
+        this._ws.on('message', function (data, _flags) {
             _this.onMessage(JSON.parse(data));
         });
-        this.ws.on('close', function (code, message) {
-            _this.emit('close', code, message);
+        this._ws.on('close', function (code, message) {
+            _this.client.emit('close', code, message);
             _this._connecting = false;
-            _this.connected = false;
-            _this.socketUrl = null;
+            _this._connected = false;
+            _this._socketUrl = null;
             return _this.reconnect();
         });
     };
-    Client.prototype.reconnect = function () {
+    Websocket.prototype.reconnect = function () {
         var _this = this;
-        if (this.autoReconnect) {
+        if (this._autoReconnect) {
             if (this._reconnecting) {
-                this.logger.info('WARNING: Already reconnecting.');
+                this.client.logger.info('WARNING: Already reconnecting.');
             }
             this._connecting = false;
             this._reconnecting = true;
@@ -557,44 +889,44 @@ var Client = (function (_super) {
                 clearInterval(this._pongTimeout);
                 this._pongTimeout = null;
             }
-            this.authenticated = false;
-            if (this.ws) {
-                this.ws.close();
+            this.client.Authentication.authenticated = false;
+            if (this._ws) {
+                this._ws.close();
             }
             this._connAttempts += 1;
             var timeout = this._connAttempts * 1000;
-            this.logger.info('Reconnecting in %dms', timeout);
+            this.client.logger.info('Reconnecting in %dms', timeout);
             return setTimeout(function () {
-                _this.logger.info('Attempting reconnect');
-                if (_this.hasAccessToken) {
-                    return _this.tokenLogin(_this.token);
+                _this.client.logger.info('Attempting reconnect');
+                if (_this.client.hasAccessToken) {
+                    return _this.client.tokenLogin(_this.client.Authentication.token);
                 }
-                return _this.login(_this.email, _this.password, _this.mfaToken);
+                return _this.client.login(_this.client.Authentication.authEmail, _this.client.Authentication.authPassword, _this.client.Authentication.mfaToken);
             }, timeout);
         }
         return false;
     };
-    Client.prototype.disconnect = function () {
-        if (!this.connected) {
+    Websocket.prototype.disconnect = function () {
+        if (!this._connected) {
             return false;
         }
-        this.autoReconnect = false;
+        this._autoReconnect = false;
         if (this._pongTimeout) {
             clearInterval(this._pongTimeout);
             this._pongTimeout = null;
         }
-        this.ws.close();
+        this._ws.close();
         return true;
     };
-    Client.prototype.onMessage = function (message) {
-        this.emit('raw_message', message);
+    Websocket.prototype.onMessage = function (message) {
+        this.client.emit('raw_message', message);
         switch (message.event) {
             case 'ping':
-                this.logger.info('ACK ping');
+                this.client.logger.info('ACK ping');
                 this._lastPong = Date.now();
-                return this.emit('ping', message);
+                return this.client.emit('ping', message);
             case 'posted':
-                return this.emit('message', message);
+                return this.client.emit('message', message);
             case 'added_to_team':
             case 'authentication_challenge':
             case 'channel_converted':
@@ -617,66 +949,125 @@ var Client = (function (_super) {
             case 'user_updated':
             case 'status_change':
             case 'webrtc':
-                return this.emit(message.event, message);
+                return this.client.emit(message.event, message);
             case 'new_user':
-                this.loadUser(message.data.user_id);
-                return this.emit('new_user', message);
+                this.client.User.loadUser(message.data.user_id);
+                return this.client.emit('new_user', message);
             default:
-                if ((message.data ? message.data.text : undefined) && (message.data.text === 'pong')) {
-                    this.logger.info('ACK ping (2)');
-                    this._lastPong = Date.now();
-                    return this.emit('ping', message);
+                if ((message.data ? message.data.text : undefined)
+                    && (message.data.text === 'pong')) {
+                    this.client.logger.info('ACK ping (2)');
+                    this.client._lastPong = Date.now();
+                    return this.client.emit('ping', message);
                 }
-                this.logger.debug('Received unhandled message:');
-                return this.logger.debug(message);
+                this.client.logger.debug('Received unhandled message:');
+                return this.client.logger.debug(message);
         }
     };
-    Client.prototype.getUserDirectMessageChannel = function (userID, callback) {
-        var channel = this.self.id + "__" + userID;
-        channel = this.findChannelByName(channel);
-        if (!channel) {
-            channel = userID + "__" + this.self.id;
-            channel = this.findChannelByName(channel);
+    Object.defineProperty(Websocket.prototype, "reconnecting", {
+        set: function (value) {
+            this._reconnecting = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Websocket.prototype, "socketUrl", {
+        set: function (value) {
+            this._socketUrl = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Websocket.prototype, "useTLS", {
+        get: function () {
+            return this._useTLS;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Websocket.prototype, "tlsverify", {
+        get: function () {
+            return this._tlsverify;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Websocket.prototype, "httpProxy", {
+        get: function () {
+            return this._httpProxy;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Websocket.prototype._send = function (message) {
+        var messageExt = __assign({}, message);
+        if (!this._connected) {
+            return false;
         }
-        if (channel) {
-            if (callback != null) {
-                callback(channel);
+        this._messageID += 1;
+        messageExt.id = this._messageID;
+        messageExt.seq = messageExt.id;
+        this._pending[messageExt.id] = messageExt;
+        this._ws.send(JSON.stringify(messageExt));
+        return messageExt;
+    };
+    Websocket.prototype.getSocketUrl = function () {
+        var protocol = this.client.useTLS ? 'wss://' : 'ws://';
+        var httpPort = this.client.options.httpPort ? ":" + this.client.options.httpPort : '';
+        var wssPort = this.client.useTLS && this.client.options.wssPort ? ":" + this.client.options.wssPort : httpPort;
+        return protocol + this.client.host + wssPort + this.apiPrefix + "/websocket";
+    };
+    return Websocket;
+}());
+
+var usersRoute = '/users';
+var Client = (function (_super) {
+    __extends(Client, _super);
+    function Client(host, group, options) {
+        var _this = _super.call(this) || this;
+        _this.me = null;
+        _this.host = host;
+        _this.group = group;
+        _this.options = options || { wssPort: 443, httpPort: 80 };
+        _this._setLogger();
+        _this.initModules();
+        process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
+        return _this;
+    }
+    Client.prototype._setLogger = function () {
+        if (typeof this.options.logger !== 'undefined') {
+            switch (this.options.logger) {
+                case 'noop':
+                    this.logger = {
+                        debug: function () {
+                        },
+                        info: function () {
+                        },
+                        notice: function () {
+                        },
+                        warning: function () {
+                        },
+                        error: function () {
+                        },
+                    };
+                    break;
+                default:
+                    this.logger = this.options.logger;
+                    break;
             }
-            return;
         }
-        this.createDirectChannel(userID, callback);
-    };
-    Client.prototype.getAllChannels = function () {
-        return this.channels;
-    };
-    Client.prototype.getChannelByID = function (id) {
-        return this.channels[id];
-    };
-    Client.prototype.getUserByID = function (id) {
-        return this.users[id];
-    };
-    Client.prototype.getUserByEmail = function (email) {
-        return Object.values(this.users)
-            .find(function (user) { return user.email === email; });
-    };
-    Client.prototype.customMessage = function (postData, channelID) {
-        var _this = this;
-        var chunks;
-        var postDataExt = __assign({}, postData);
-        if (postDataExt.message != null) {
-            chunks = this._chunkMessage(postData.message);
-            postDataExt.message = chunks.shift();
+        else {
+            this.logger = Log;
         }
-        postDataExt.channel_id = channelID;
-        return this._apiCall('POST', '/posts', postData, function (_data, _headers) {
-            _this.logger.debug('Posted custom message.');
-            if ((chunks != null ? chunks.length : undefined) > 0) {
-                _this.logger.debug("Recursively posting remainder of customMessage: (" + chunks.length + ")");
-                postDataExt.message = chunks.join();
-                return _this.customMessage(postData, channelID);
-            }
-            return true;
-        });
+    };
+    Client.prototype.initModules = function () {
+        this.Api = new Api(this);
+        this.Authentication = new Authentication(this, usersRoute);
+        this.Channel = new Channel(this, usersRoute);
+        this.Post = new Post(this);
+        this.User = new User(this, usersRoute);
+        this.Team = new Team(this, usersRoute);
+        this.Websocket = new Websocket(this);
     };
     Client.prototype.dialog = function (triggerId, url, dialog) {
         var _this = this;
@@ -685,216 +1076,9 @@ var Client = (function (_super) {
             url: url,
             dialog: dialog,
         };
-        return this._apiCall('POST', '/actions/dialogs/open', postData, function (_data, _headers) {
+        return this.Api.apiCall('POST', '/actions/dialogs/open', postData, function (_data, _headers) {
             _this.logger.debug('Created dialog');
         });
-    };
-    Client.prototype.editPost = function (postId, msg) {
-        var _this = this;
-        var postData = msg;
-        if (typeof msg === 'string') {
-            postData = {
-                id: postId,
-                message: msg,
-            };
-        }
-        return this._apiCall('PUT', "/posts/" + postId, postData, function (_data, _headers) {
-            _this.logger.debug('Edited post');
-        });
-    };
-    Client.prototype.uploadFile = function (channelId, file, callback) {
-        var _this = this;
-        var formData = {
-            channel_id: channelId,
-            files: file,
-        };
-        return this._apiCall('POST', '/files', formData, function (data, _headers) {
-            _this.logger.debug('Posted file');
-            return callback(data);
-        }, {}, true);
-    };
-    Client.prototype.react = function (messageID, emoji) {
-        var _this = this;
-        var postData = {
-            user_id: this.self.id,
-            post_id: messageID,
-            emoji_name: emoji,
-            create_at: 0,
-        };
-        return this._apiCall('POST', '/reactions', postData, function (_data, _headers) {
-            _this.logger.debug('Created reaction');
-        });
-    };
-    Client.prototype.unreact = function (messageID, emoji) {
-        var _this = this;
-        var uri = "/users/me/posts/" + messageID + "/reactions/" + emoji;
-        return this._apiCall('DELETE', uri, [], function (_data, _headers) {
-            _this.logger.debug('Deleted reaction');
-        });
-    };
-    Client.prototype.createDirectChannel = function (userID, callback) {
-        var _this = this;
-        var postData = [userID, this.self.id];
-        return this._apiCall('POST', '/channels/direct', postData, function (data, _headers) {
-            _this.logger.info('Created Direct Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Client.prototype.createGroupChannel = function (userIDs, callback) {
-        var _this = this;
-        return this._apiCall('POST', '/channels/group', userIDs, function (data, _headers) {
-            _this.logger.info('Created Group Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Client.prototype.createPrivateChannel = function (privateChannel, callback) {
-        var _this = this;
-        return this._apiCall('POST', '/channels', privateChannel, function (data, _headers) {
-            _this.logger.info('Created Private Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Client.prototype.addUserToChannel = function (privateChannel, callback) {
-        var _this = this;
-        var uri = "/channels/" + privateChannel.channel_id + "/members";
-        return this._apiCall('POST', uri, privateChannel, function (data, _headers) {
-            _this.logger.info("Added User to Channel" + privateChannel.channel_id);
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Client.prototype.findChannelByName = function (name) {
-        var _this = this;
-        var foundChannel = Object.keys(this.channels)
-            .find(function (channel) {
-            var channelName = _this.channels[channel].name;
-            var channelDisplayName = _this.channels[channel].display_name;
-            return channelName === name || channelDisplayName === name;
-        });
-        return foundChannel || null;
-    };
-    Client.prototype._chunkMessage = function (msg) {
-        if (!msg) {
-            return [''];
-        }
-        return msg.match(new RegExp("(.|[\r\n]){1," + this.messageMaxRunes + "}", 'g'));
-    };
-    Client.prototype.postMessage = function (msg, channelID) {
-        var _this = this;
-        var postData = {
-            message: msg,
-            file_ids: [],
-            create_at: 0,
-            user_id: this.self.id,
-            channel_id: channelID,
-        };
-        if (typeof msg === 'string') {
-            postData.message = msg;
-        }
-        else {
-            postData.message = msg.message;
-            if (msg.props) {
-                postData.props = msg.props;
-            }
-            if (msg.file_ids) {
-                postData.file_ids = msg.file_ids;
-            }
-        }
-        var chunks = this._chunkMessage(postData.message);
-        postData.message = chunks.shift();
-        return this._apiCall('POST', '/posts', postData, function (_data, _headers) {
-            _this.logger.debug('Posted message.');
-            if ((chunks != null ? chunks.length : undefined) > 0) {
-                var message = chunks.join();
-                var chunksLenght = chunks ? chunks.length : undefined;
-                _this.logger.debug("Recursively posting remainder of message: (" + chunksLenght + ")");
-                return _this.postMessage(message, channelID);
-            }
-            return true;
-        });
-    };
-    Client.prototype.setChannelHeader = function (channelID, header) {
-        var _this = this;
-        var postData = {
-            channel_id: channelID,
-            channel_header: header,
-        };
-        return this._apiCall('POST', this.teamRoute() + "/channels/update_header", postData, function (_data, _headers) {
-            _this.logger.debug('Channel header updated.');
-            return true;
-        });
-    };
-    Client.prototype._send = function (message) {
-        var messageExt = __assign({}, message);
-        if (!this.connected) {
-            return false;
-        }
-        this._messageID += 1;
-        messageExt.id = this._messageID;
-        messageExt.seq = messageExt.id;
-        this._pending[messageExt.id] = messageExt;
-        this.ws.send(JSON.stringify(messageExt));
-        return messageExt;
-    };
-    Client.prototype._apiCall = function (method, path, params, callback, callbackParams, isForm) {
-        if (callbackParams === void 0) { callbackParams = {}; }
-        if (isForm === void 0) { isForm = false; }
-        var postData = '';
-        if (params != null) {
-            postData = JSON.stringify(params);
-        }
-        var options = {
-            uri: this._getApiUrl(path),
-            method: method,
-            json: params,
-            rejectUnauthorized: this.tlsverify,
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        };
-        if (this.additionalHeaders) {
-            options.headers = Object.assign(options.headers, __assign({}, this.additionalHeaders));
-        }
-        if (this.token) {
-            options.headers.Authorization = "BEARER " + this.token;
-        }
-        if (this.httpProxy) {
-            options.proxy = this.httpProxy;
-        }
-        if (isForm) {
-            options.headers['Content-Type'] = 'multipart/form-data';
-            delete options.headers['Content-Length'];
-            delete options.json;
-            options.formData = params;
-        }
-        this.logger.debug(method + " " + path);
-        this.logger.info("api url:" + options.uri);
-        return request(options, function (error, res, value) {
-            if (error) {
-                if (callback) {
-                    return callback({ id: null, error: error.errno }, {}, callbackParams);
-                }
-            }
-            else if (callback) {
-                if ((res.statusCode === 200) || (res.statusCode === 201)) {
-                    var safeValue = typeof value === 'string'
-                        ? JSON.parse(value)
-                        : value;
-                    return callback(safeValue, res.headers, callbackParams);
-                }
-                return callback({
-                    id: null,
-                    error: "API response: " + res.statusCode + " " + JSON.stringify(value),
-                }, res.headers, callbackParams);
-            }
-            return false;
-        });
-    };
-    Client.prototype._getApiUrl = function (path) {
-        var protocol = this.useTLS ? 'https://' : 'http://';
-        var port = (this.options.httpPort != null) ? ":" + this.options.httpPort : '';
-        return protocol + this.host + port + apiPrefix + path;
     };
     return Client;
 }(EventEmitter));

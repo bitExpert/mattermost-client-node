@@ -12,13 +12,13 @@ export default (Client) => describe('websocket', () => {
         });
         client.on('loggedIn', () => {
             client.on('connected', () => done());
-            client.connect();
+            client.Websocket.connect();
         });
-        client.login(ADMIN.email, ADMIN.password, null);
+        client.Authentication.login(ADMIN.email, ADMIN.password, null);
     });
 
     afterAll(() => {
-        client.disconnect();
+        client.Websocket.disconnect();
     });
     /*
     beforeAll(() => {
@@ -27,7 +27,7 @@ export default (Client) => describe('websocket', () => {
     });
     */
     test('websocket message on send has correct shape', (done) => {
-        const sendTest = client._send({ foo: 'bar' });
+        const sendTest = client.Websocket._send({ foo: 'bar' });
         expect(sendTest).toMatchObject(WSMESSAGE.mock);
         done();
     });

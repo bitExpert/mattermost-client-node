@@ -25,7 +25,7 @@ export default (Client) => describe('authentication', () => {
                 expect(error).toEqual({"error": "ENOTFOUND", "id": null});
                 done();
             });
-            client.login();
+            client.Authentication.login();
         });
         */
 
@@ -45,7 +45,7 @@ export default (Client) => describe('authentication', () => {
                 expect(user.username).toEqual(ADMIN.username);
                 done();
             });
-            client.login(ADMIN.email, ADMIN.password, null);
+            client.Authentication.login(ADMIN.email, ADMIN.password, null);
         });
 
         test('(admin) client with correct settings can log in with autoReconnect: true', (done) => {
@@ -64,7 +64,7 @@ export default (Client) => describe('authentication', () => {
                 expect(user.username).toEqual(ADMIN.username);
                 done();
             });
-            client.login(ADMIN.email, ADMIN.password, null);
+            client.Authentication.login(ADMIN.email, ADMIN.password, null);
         });
 
         test('(admin) client throws EPROTO error when TLS can not be used', (done) => {
@@ -79,7 +79,7 @@ export default (Client) => describe('authentication', () => {
                 expect(err).toEqual({ id: null, error: 'EPROTO' });
                 done();
             });
-            client.login(ADMIN.email, ADMIN.password, null);
+            client.Authentication.login(ADMIN.email, ADMIN.password, null);
         });
 
         test('(user) client with correct settings can log in', (done) => {
@@ -98,7 +98,7 @@ export default (Client) => describe('authentication', () => {
                 expect(user.username).toEqual(USER.username);
                 done();
             });
-            client.login(USER.email, USER.password, null);
+            client.Authentication.login(USER.email, USER.password, null);
         });
 
         test('(user) client with correct settings can log in with autoReconnect: true', (done) => {
@@ -117,7 +117,7 @@ export default (Client) => describe('authentication', () => {
                 expect(user.username).toEqual(USER.username);
                 done();
             });
-            client.login(USER.email, USER.password, null);
+            client.Authentication.login(USER.email, USER.password, null);
         });
 
         test('(user) client throws EPROTO error when TLS can not be used', (done) => {
@@ -132,7 +132,7 @@ export default (Client) => describe('authentication', () => {
                 expect(err).toEqual({ id: null, error: 'EPROTO' });
                 done();
             });
-            client.login(USER.email, USER.password, null);
+            client.Authentication.login(USER.email, USER.password, null);
         });
     });
 });

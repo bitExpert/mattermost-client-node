@@ -14,11 +14,11 @@ export default (Client) => describe('posts', () => {
             currentUser = userData;
             done();
         });
-        client.login(ADMIN.email, ADMIN.password, null);
+        client.Authentication.login(ADMIN.email, ADMIN.password, null);
     });
 
     afterAll(() => {
-        client.disconnect();
+        client.Websocket.disconnect();
     });
     /*
     beforeEach((done) => {

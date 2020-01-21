@@ -157,6 +157,15 @@ export default () => {
         },
     };
 
+    global.PREFERENCES = {
+        mock: {
+            user_id: expect.any(String),
+            category: expect.any(String),
+            name: expect.any(String),
+            value: expect.any(String),
+        },
+    };
+
     global.PRIVATECHANNEL = 'privatechannel';
     global.PUBLICCHANNEL = 'publicchannel';
 
