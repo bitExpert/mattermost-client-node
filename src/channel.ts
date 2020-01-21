@@ -36,11 +36,11 @@ class Channel {
     // @Todo tests
     getUserDirectMessageChannel(userID: string, callback: any): any {
         // check if channel already exists
-        let channel = `${this.client.self.id}__${userID}`;
+        let channel = `${this.client.me.id}__${userID}`;
         channel = this.findChannelByName(channel);
         if (!channel) {
             // check if channel in other direction exists
-            channel = `${userID}__${this.client.self.id}`;
+            channel = `${userID}__${this.client.me.id}`;
             channel = this.findChannelByName(channel);
         }
         if (channel) {
@@ -91,7 +91,7 @@ class Channel {
     // type "D" = Direct Messages
     // @Todo tests
     createDirectChannel(userID: string, callback: any): any {
-        const postData = [userID, this.client.self.id];
+        const postData = [userID, this.client.me.id];
         return this.client.Api.apiCall(
             'POST',
             '/channels/direct',

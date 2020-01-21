@@ -4,11 +4,11 @@ function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'defau
 
 var WebSocket = _interopDefault(require('isomorphic-ws'));
 var Log = _interopDefault(require('log'));
-var querystring = _interopDefault(require('querystring'));
 var events = require('events');
 var HttpsProxyAgent = _interopDefault(require('https-proxy-agent'));
 var TextEncoding = _interopDefault(require('text-encoding'));
 var request = _interopDefault(require('request'));
+var querystring = _interopDefault(require('querystring'));
 
 /*! *****************************************************************************
 Copyright (c) Microsoft Corporation. All rights reserved.
@@ -49,6 +49,511 @@ var __assign = function() {
     };
     return __assign.apply(this, arguments);
 };
+
+var apiPrefix = '/api/v4';
+var Api = (function () {
+    function Api(client) {
+        this._token = null;
+        this.client = client;
+    }
+    Api.prototype.apiCall = function (method, path, params, callback, callbackParams, isForm) {
+        if (callbackParams === void 0) { callbackParams = {}; }
+        if (isForm === void 0) { isForm = false; }
+        var postData = '';
+        if (params != null) {
+            postData = JSON.stringify(params);
+        }
+        var options = {
+            uri: this._getApiUrl(path),
+            method: method,
+            json: params,
+            rejectUnauthorized: this.client.tlsverify,
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        };
+        if (this.client.additionalHeaders) {
+            options.headers = Object.assign(options.headers, __assign({}, this.client.additionalHeaders));
+        }
+        if (this._token) {
+            options.headers.Authorization = "BEARER " + this._token;
+        }
+        if (this.client.httpProxy) {
+            options.proxy = this.client.httpProxy;
+        }
+        if (isForm) {
+            options.headers['Content-Type'] = 'multipart/form-data';
+            delete options.headers['Content-Length'];
+            delete options.json;
+            options.formData = params;
+        }
+        this.client.logger.debug(method + " " + path);
+        this.client.logger.info("api url:" + options.uri);
+        return request(options, function (error, res, value) {
+            if (error) {
+                if (callback) {
+                    return callback({ id: null, error: error.errno }, {}, callbackParams);
+                }
+            }
+            else if (callback) {
+                if ((res.statusCode === 200) || (res.statusCode === 201)) {
+                    var safeValue = typeof value === 'string'
+                        ? JSON.parse(value)
+                        : value;
+                    return callback(safeValue, res.headers, callbackParams);
+                }
+                return callback({
+                    id: null,
+                    error: "API response: " + res.statusCode + " " + JSON.stringify(value),
+                }, res.headers, callbackParams);
+            }
+            return false;
+        });
+    };
+    Api.prototype._getApiUrl = function (path) {
+        var protocol = this.client.useTLS ? 'https://' : 'http://';
+        var port = this.client.options.httpPort ? ":" + this.client.options.httpPort : '';
+        return protocol + this.client.host + port + apiPrefix + path;
+    };
+    Object.defineProperty(Api.prototype, "token", {
+        set: function (value) {
+            this._token = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return Api;
+}());
+
+var Channel = (function () {
+    function Channel(client, usersRoute) {
+        this._channels = {};
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    Channel.prototype.initBindings = function () {
+        this._onChannels = this._onChannels.bind(this);
+        this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
+        this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
+        this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
+    };
+    Channel.prototype.loadChannels = function () {
+        var uri = "/users/me/teams/" + this.client.Team.teamID + "/channels";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onChannels);
+    };
+    Channel.prototype.getUserDirectMessageChannel = function (userID, callback) {
+        var channel = this.client.me.id + "__" + userID;
+        channel = this.findChannelByName(channel);
+        if (!channel) {
+            channel = userID + "__" + this.client.me.id;
+            channel = this.findChannelByName(channel);
+        }
+        if (channel) {
+            if (callback != null) {
+                callback(channel);
+            }
+            return;
+        }
+        this.createDirectChannel(userID, callback);
+    };
+    Channel.prototype.loadUnreadsForChannels = function () {
+        var uri = '/users/me/teams/unread';
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onUnreadsForChannels);
+    };
+    Channel.prototype.loadMembersFromChannels = function () {
+        var uri = "/users/me/teams/" + this.client.Team.teamID + "/channels/members";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
+    };
+    Channel.prototype.loadChannelLastViewed = function (channelId, prevChannelId) {
+        if (prevChannelId === void 0) { prevChannelId = null; }
+        var postData = {
+            channel_id: channelId,
+            prev_channel_id: prevChannelId,
+        };
+        var uri = '/channels/members/me/view';
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('POST', uri, postData, this._onChannelLastViewed);
+    };
+    Channel.prototype.createDirectChannel = function (userID, callback) {
+        var _this = this;
+        var postData = [userID, this.client.me.id];
+        return this.client.Api.apiCall('POST', '/channels/direct', postData, function (data, _headers) {
+            _this.client.logger.info('Created Direct Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.createGroupChannel = function (userIDs, callback) {
+        var _this = this;
+        return this.client.Api.apiCall('POST', '/channels/group', userIDs, function (data, _headers) {
+            _this.client.logger.info('Created Group Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.createPrivateChannel = function (privateChannel, callback) {
+        var _this = this;
+        return this.client.Api.apiCall('POST', '/channels', privateChannel, function (data, _headers) {
+            _this.client.logger.info('Created Private Channel.');
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.addUserToChannel = function (privateChannel, callback) {
+        var _this = this;
+        var uri = "/channels/" + privateChannel.channel_id + "/members";
+        return this.client.Api.apiCall('POST', uri, privateChannel, function (data, _headers) {
+            _this.client.logger.info("Added User to Channel " + privateChannel.channel_id);
+            return (callback != null) ? callback(data) : false;
+        });
+    };
+    Channel.prototype.setChannelHeader = function (channelID, header) {
+        var _this = this;
+        var postData = {
+            channel_id: channelID,
+            channel_header: header,
+        };
+        return this.client.Api.apiCall('POST', this.client.Team.teamRoute() + "/channels/update_header", postData, function (_data, _headers) {
+            _this.client.logger.debug('Channel header updated.');
+            return true;
+        });
+    };
+    Channel.prototype.getAllChannels = function () {
+        return this._channels;
+    };
+    Channel.prototype.getChannelByID = function (id) {
+        return this._channels[id];
+    };
+    Channel.prototype._onChannels = function (data, _headers, _params) {
+        var _this = this;
+        if (data && !data.error) {
+            data.forEach(function (channel) {
+                _this._channels[channel.id] = channel;
+            });
+            this.client.logger.info("Found " + Object.keys(data).length + " subscribed channels.");
+            return this.client.emit('channelsLoaded', data);
+        }
+        this.client.logger.error("Failed to get subscribed channels list from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get channel list' });
+    };
+    Channel.prototype._onUnreadsForChannels = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " information about unreads.");
+            return this.client.emit('channelsUnreadsLoaded', data);
+        }
+        this.client.logger.error("Failed to get unreads of channels from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get unreads for channels' });
+    };
+    Channel.prototype._onMembersFromChannels = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " channels.");
+            return this.client.emit('membersFromChannelsLoaded', data);
+        }
+        this.client.logger.error("Failed to get messages from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get all members from channels' });
+    };
+    Channel.prototype._onChannelLastViewed = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " for last reads.");
+            return this.client.emit('channelLastViewedLoaded', data);
+        }
+        this.client.logger.error("Failed to get last reads of channel(s) from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get last reads for channel(s)' });
+    };
+    Object.defineProperty(Channel.prototype, "channels", {
+        get: function () {
+            return this._channels;
+        },
+        set: function (value) {
+            this._channels = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Channel.prototype.channelRoute = function (channelId) {
+        return this.client.Team.teamRoute() + "/channels/" + channelId;
+    };
+    Channel.prototype.findChannelByName = function (name) {
+        var _this = this;
+        var foundChannel = Object.keys(this._channels)
+            .find(function (channel) {
+            var channelName = _this._channels[channel].name;
+            var channelDisplayName = _this._channels[channel].display_name;
+            return channelName === name || channelDisplayName === name;
+        });
+        return foundChannel || null;
+    };
+    return Channel;
+}());
+
+var Post = (function () {
+    function Post(client) {
+        this._messageMaxRunes = 4000;
+        this.client = client;
+        this.initBindings();
+    }
+    Post.prototype.initBindings = function () {
+        this._onMessages = this._onMessages.bind(this);
+    };
+    Post.prototype.loadMessagesFromChannel = function (channelId, options) {
+        if (options === void 0) { options = {}; }
+        var uri = "/channels/" + channelId + "/posts";
+        var allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
+        var params = {};
+        Object.entries(options).forEach(function (option) {
+            var key = option[0];
+            var value = option[1];
+            if (allowedOptions.indexOf(key) >= 0) {
+                params[key] = value;
+            }
+        });
+        if (!params.page) {
+            params.page = 0;
+        }
+        if (!params.per_page) {
+            params.per_page = 30;
+        }
+        uri += "?" + querystring.stringify(params);
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, params, this._onMessages);
+    };
+    Post.prototype.postMessage = function (msg, channelID) {
+        var _this = this;
+        var postData = {
+            message: msg,
+            file_ids: [],
+            create_at: 0,
+            user_id: this.client.me.id,
+            channel_id: channelID,
+        };
+        if (typeof msg === 'string') {
+            postData.message = msg;
+        }
+        else {
+            postData.message = msg.message;
+            if (msg.props) {
+                postData.props = msg.props;
+            }
+            if (msg.file_ids) {
+                postData.file_ids = msg.file_ids;
+            }
+        }
+        var chunks = this._chunkMessage(postData.message);
+        postData.message = chunks.shift();
+        return this.client.Api.apiCall('POST', '/posts', postData, function (_data, _headers) {
+            _this.client.logger.debug('Posted message.');
+            if ((chunks != null ? chunks.length : undefined) > 0) {
+                var message = chunks.join();
+                var chunksLenght = chunks ? chunks.length : undefined;
+                _this.client.logger.debug("Recursively posting remainder of message: (" + chunksLenght + ")");
+                return _this.postMessage(message, channelID);
+            }
+            return true;
+        });
+    };
+    Post.prototype.customMessage = function (postData, channelID) {
+        var _this = this;
+        var chunks;
+        var postDataExt = __assign({}, postData);
+        if (postDataExt.message != null) {
+            chunks = this._chunkMessage(postData.message);
+            postDataExt.message = chunks.shift();
+        }
+        postDataExt.channel_id = channelID;
+        return this.client.Api.apiCall('POST', '/posts', postData, function (_data, _headers) {
+            _this.client.logger.debug('Posted custom message.');
+            if ((chunks != null ? chunks.length : undefined) > 0) {
+                _this.client.logger.debug("Recursively posting remainder of customMessage: (" + chunks.length + ")");
+                postDataExt.message = chunks.join();
+                return _this.customMessage(postData, channelID);
+            }
+            return true;
+        });
+    };
+    Post.prototype.editPost = function (postId, msg) {
+        var _this = this;
+        var postData = msg;
+        if (typeof msg === 'string') {
+            postData = {
+                id: postId,
+                message: msg,
+            };
+        }
+        return this.client.Api.apiCall('PUT', "/posts/" + postId, postData, function (_data, _headers) {
+            _this.client.logger.debug('Edited post');
+        });
+    };
+    Post.prototype.uploadFile = function (channelId, file, callback) {
+        var _this = this;
+        var formData = {
+            channel_id: channelId,
+            files: file,
+        };
+        return this.client.Api.apiCall('POST', '/files', formData, function (data, _headers) {
+            _this.client.logger.debug('Posted file');
+            return callback(data);
+        }, {}, true);
+    };
+    Post.prototype.react = function (messageID, emoji) {
+        var _this = this;
+        var postData = {
+            user_id: this.client.me.id,
+            post_id: messageID,
+            emoji_name: emoji,
+            create_at: 0,
+        };
+        return this.client.Api.apiCall('POST', '/reactions', postData, function (_data, _headers) {
+            _this.client.logger.debug('Created reaction');
+        });
+    };
+    Post.prototype.unreact = function (messageID, emoji) {
+        var _this = this;
+        var uri = "/users/me/posts/" + messageID + "/reactions/" + emoji;
+        return this.client.Api.apiCall('DELETE', uri, [], function (_data, _headers) {
+            _this.client.logger.debug('Deleted reaction');
+        });
+    };
+    Post.prototype._onMessages = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " messages.");
+            return this.client.emit('messagesLoaded', data);
+        }
+        this.client.logger.error("Failed to get messages from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get messages' });
+    };
+    Object.defineProperty(Post.prototype, "messageMaxRunes", {
+        set: function (value) {
+            this._messageMaxRunes = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Post.prototype._chunkMessage = function (msg) {
+        if (!msg) {
+            return [''];
+        }
+        return msg.match(new RegExp("(.|[\r\n]){1," + this._messageMaxRunes + "}", 'g'));
+    };
+    return Post;
+}());
+
+var Team = (function () {
+    function Team(client, usersRoute) {
+        this._teams = {};
+        this._teamID = null;
+        this.client = client;
+        this.usersRoute = usersRoute;
+        this.initBindings();
+    }
+    Team.prototype.initBindings = function () {
+        this._onTeams = this._onTeams.bind(this);
+        this._onTeamsByName = this._onTeamsByName.bind(this);
+        this._onCreateTeam = this._onCreateTeam.bind(this);
+        this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
+        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
+    };
+    Team.prototype.getTeams = function () {
+        var uri = this.usersRoute + "/me/teams";
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onTeams);
+    };
+    Team.prototype.getTeamByName = function (teamName) {
+        var uri = "/teams/name/" + teamName;
+        this.client.logger.info("Loading " + uri);
+        return this.client.Api.apiCall('GET', uri, null, this._onTeamsByName);
+    };
+    Team.prototype.checkIfTeamExists = function (teamName) {
+        var uri = "/teams/name/" + teamName + "/exists";
+        return this.client.Api.apiCall('GET', uri, null, this._onCheckIfTeamExists);
+    };
+    Team.prototype.createTeam = function (name, display_name, type) {
+        if (type === void 0) { type = 'I'; }
+        var uri = '/teams';
+        return this.client.Api.apiCall('POST', uri, { name: name, display_name: display_name, type: type }, this._onCreateTeam);
+    };
+    Team.prototype.addUserToTeam = function (user_id, team_id) {
+        var postData = {
+            team_id: team_id,
+            user_id: user_id,
+        };
+        var uri = "/teams/" + team_id + "/members";
+        return this.client.Api.apiCall('POST', uri, postData, this._onAddUserToTeam);
+    };
+    Team.prototype._onTeams = function (data, _headers, _params) {
+        var _this = this;
+        if (data && !data.error) {
+            this._teams = data;
+            this.client.emit('teamsLoaded', data);
+            if (!data.length) {
+                return this._teams;
+            }
+            this.client.logger.info("Found " + Object.keys(this._teams).length + " teams.");
+            this._teams
+                .find(function (team) {
+                var isTeamFound = team.name.toLowerCase() === _this.client.group.toLowerCase();
+                _this.client.logger.debug("Testing " + team.name + " == " + _this.client.group);
+                if (isTeamFound) {
+                    _this._teamID = team.id;
+                    _this.client.logger.info("Found team! " + team.id);
+                }
+                return isTeamFound;
+            });
+            this.client.User.loadUsers();
+            return this.client.Channel.loadChannels();
+        }
+        this.client.logger.error('Failed to load Teams...');
+        return this.client.reconnect();
+    };
+    Team.prototype._onTeamsByName = function (data, _headers, _params) {
+        if (data && !data.error) {
+            this.client.logger.info("Found " + Object.keys(data).length + " channels.");
+            return this.client.emit('teamsByNameLoaded', data);
+        }
+        this.client.logger.error("Failed to get team by name from server: " + data.error);
+        return this.client.emit('error', { msg: 'failed to get team by name' });
+    };
+    Team.prototype._onCreateTeam = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Creating team...');
+            return this.client.emit('teamCreated', data);
+        }
+        this.client.logger.error('Team creation failed', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Team.prototype._onAddUserToTeam = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Adding user to team...');
+            return this.client.emit('userAdded', data);
+        }
+        this.client.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Team.prototype._onCheckIfTeamExists = function (data) {
+        if (!data.error) {
+            this.client.logger.info('Checking if team exists...');
+            return this.client.emit('teamChecked', data);
+        }
+        this.client.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
+        return this.client.emit('error', data);
+    };
+    Object.defineProperty(Team.prototype, "teamID", {
+        get: function () {
+            return this._teamID;
+        },
+        set: function (value) {
+            this._teamID = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Team.prototype.teamRoute = function () {
+        return this.usersRoute + "/me/teams/" + this.teamID;
+    };
+    return Team;
+}());
 
 var User = (function () {
     function User(client, usersRoute) {
@@ -183,360 +688,6 @@ var User = (function () {
     return User;
 }());
 
-var apiPrefix = '/api/v4';
-var Api = (function () {
-    function Api(client) {
-        this._token = null;
-        this.client = client;
-    }
-    Api.prototype.apiCall = function (method, path, params, callback, callbackParams, isForm) {
-        if (callbackParams === void 0) { callbackParams = {}; }
-        if (isForm === void 0) { isForm = false; }
-        var postData = '';
-        if (params != null) {
-            postData = JSON.stringify(params);
-        }
-        var options = {
-            uri: this._getApiUrl(path),
-            method: method,
-            json: params,
-            rejectUnauthorized: this.client.tlsverify,
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': new TextEncoding.TextEncoder('utf-8').encode(postData).length,
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        };
-        if (this.client.additionalHeaders) {
-            options.headers = Object.assign(options.headers, __assign({}, this.client.additionalHeaders));
-        }
-        if (this._token) {
-            options.headers.Authorization = "BEARER " + this._token;
-        }
-        if (this.client.httpProxy) {
-            options.proxy = this.client.httpProxy;
-        }
-        if (isForm) {
-            options.headers['Content-Type'] = 'multipart/form-data';
-            delete options.headers['Content-Length'];
-            delete options.json;
-            options.formData = params;
-        }
-        this.client.logger.debug(method + " " + path);
-        this.client.logger.info("api url:" + options.uri);
-        return request(options, function (error, res, value) {
-            if (error) {
-                if (callback) {
-                    return callback({ id: null, error: error.errno }, {}, callbackParams);
-                }
-            }
-            else if (callback) {
-                if ((res.statusCode === 200) || (res.statusCode === 201)) {
-                    var safeValue = typeof value === 'string'
-                        ? JSON.parse(value)
-                        : value;
-                    return callback(safeValue, res.headers, callbackParams);
-                }
-                return callback({
-                    id: null,
-                    error: "API response: " + res.statusCode + " " + JSON.stringify(value),
-                }, res.headers, callbackParams);
-            }
-            return false;
-        });
-    };
-    Api.prototype._getApiUrl = function (path) {
-        var protocol = this.client.useTLS ? 'https://' : 'http://';
-        var port = this.client.options.httpPort ? ":" + this.client.options.httpPort : '';
-        return protocol + this.client.host + port + apiPrefix + path;
-    };
-    Object.defineProperty(Api.prototype, "token", {
-        set: function (value) {
-            this._token = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    return Api;
-}());
-
-var Team = (function () {
-    function Team(client, usersRoute) {
-        this._teams = {};
-        this._teamID = null;
-        this.client = client;
-        this.usersRoute = usersRoute;
-        this.initBindings();
-    }
-    Team.prototype.initBindings = function () {
-        this._onTeams = this._onTeams.bind(this);
-        this._onTeamsByName = this._onTeamsByName.bind(this);
-        this._onCreateTeam = this._onCreateTeam.bind(this);
-        this._onAddUserToTeam = this._onAddUserToTeam.bind(this);
-        this._onCheckIfTeamExists = this._onCheckIfTeamExists.bind(this);
-    };
-    Team.prototype.getTeams = function () {
-        var uri = this.usersRoute + "/me/teams";
-        this.client.logger.info("Loading " + uri);
-        return this.client.Api.apiCall('GET', uri, null, this._onTeams);
-    };
-    Team.prototype.getTeamByName = function (teamName) {
-        var uri = "/teams/name/" + teamName;
-        this.client.logger.info("Loading " + uri);
-        return this.client.Api.apiCall('GET', uri, null, this._onTeamsByName);
-    };
-    Team.prototype.checkIfTeamExists = function (teamName) {
-        var uri = "/teams/name/" + teamName + "/exists";
-        return this.client.Api.apiCall('GET', uri, null, this._onCheckIfTeamExists);
-    };
-    Team.prototype.createTeam = function (name, display_name, type) {
-        if (type === void 0) { type = 'I'; }
-        var uri = '/teams';
-        return this.client.Api.apiCall('POST', uri, { name: name, display_name: display_name, type: type }, this._onCreateTeam);
-    };
-    Team.prototype.addUserToTeam = function (user_id, team_id) {
-        var postData = {
-            team_id: team_id,
-            user_id: user_id,
-        };
-        var uri = "/teams/" + team_id + "/members";
-        return this.client.Api.apiCall('POST', uri, postData, this._onAddUserToTeam);
-    };
-    Team.prototype._onTeams = function (data, _headers, _params) {
-        var _this = this;
-        if (data && !data.error) {
-            this._teams = data;
-            this.client.emit('teamsLoaded', data);
-            if (!data.length) {
-                return this._teams;
-            }
-            this.client.logger.info("Found " + Object.keys(this._teams).length + " teams.");
-            this._teams
-                .find(function (team) {
-                var isTeamFound = team.name.toLowerCase() === _this.client.group.toLowerCase();
-                _this.client.logger.debug("Testing " + team.name + " == " + _this.client.group);
-                if (isTeamFound) {
-                    _this._teamID = team.id;
-                    _this.client.logger.info("Found team! " + team.id);
-                }
-                return isTeamFound;
-            });
-            this.client.User.loadUsers();
-            return this.client.Channel.loadChannels();
-        }
-        this.client.logger.error('Failed to load Teams...');
-        return this.client.reconnect();
-    };
-    Team.prototype._onTeamsByName = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.client.logger.info("Found " + Object.keys(data).length + " channels.");
-            return this.client.emit('teamsByNameLoaded', data);
-        }
-        this.client.logger.error("Failed to get team by name from server: " + data.error);
-        return this.client.emit('error', { msg: 'failed to get team by name' });
-    };
-    Team.prototype._onCreateTeam = function (data) {
-        if (!data.error) {
-            this.client.logger.info('Creating team...');
-            return this.client.emit('teamCreated', data);
-        }
-        this.client.logger.error('Team creation failed', JSON.stringify(data));
-        return this.client.emit('error', data);
-    };
-    Team.prototype._onAddUserToTeam = function (data) {
-        if (!data.error) {
-            this.client.logger.info('Adding user to team...');
-            return this.client.emit('userAdded', data);
-        }
-        this.client.logger.error('An error occured while adding user to team: ', JSON.stringify(data));
-        return this.client.emit('error', data);
-    };
-    Team.prototype._onCheckIfTeamExists = function (data) {
-        if (!data.error) {
-            this.client.logger.info('Checking if team exists...');
-            return this.client.emit('teamChecked', data);
-        }
-        this.client.logger.error('An error occured while checking if team exists: ', JSON.stringify(data));
-        return this.client.emit('error', data);
-    };
-    Object.defineProperty(Team.prototype, "teamID", {
-        get: function () {
-            return this._teamID;
-        },
-        set: function (value) {
-            this._teamID = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Team.prototype.teamRoute = function () {
-        return this.usersRoute + "/me/teams/" + this.teamID;
-    };
-    return Team;
-}());
-
-var Channel = (function () {
-    function Channel(client, usersRoute) {
-        this._channels = {};
-        this.client = client;
-        this.usersRoute = usersRoute;
-        this.initBindings();
-    }
-    Channel.prototype.initBindings = function () {
-        this._onChannels = this._onChannels.bind(this);
-        this._onUnreadsForChannels = this._onUnreadsForChannels.bind(this);
-        this._onMembersFromChannels = this._onMembersFromChannels.bind(this);
-        this._onChannelLastViewed = this._onChannelLastViewed.bind(this);
-    };
-    Channel.prototype.loadChannels = function () {
-        var uri = "/users/me/teams/" + this.client.Team.teamID + "/channels";
-        this.client.logger.info("Loading " + uri);
-        return this.client.Api.apiCall('GET', uri, null, this._onChannels);
-    };
-    Channel.prototype.getUserDirectMessageChannel = function (userID, callback) {
-        var channel = this.client.self.id + "__" + userID;
-        channel = this.findChannelByName(channel);
-        if (!channel) {
-            channel = userID + "__" + this.client.self.id;
-            channel = this.findChannelByName(channel);
-        }
-        if (channel) {
-            if (callback != null) {
-                callback(channel);
-            }
-            return;
-        }
-        this.createDirectChannel(userID, callback);
-    };
-    Channel.prototype.loadUnreadsForChannels = function () {
-        var uri = '/users/me/teams/unread';
-        this.client.logger.info("Loading " + uri);
-        return this.client.Api.apiCall('GET', uri, null, this._onUnreadsForChannels);
-    };
-    Channel.prototype.loadMembersFromChannels = function () {
-        var uri = "/users/me/teams/" + this.client.Team.teamID + "/channels/members";
-        this.client.logger.info("Loading " + uri);
-        return this.client.Api.apiCall('GET', uri, null, this._onMembersFromChannels);
-    };
-    Channel.prototype.loadChannelLastViewed = function (channelId, prevChannelId) {
-        if (prevChannelId === void 0) { prevChannelId = null; }
-        var postData = {
-            channel_id: channelId,
-            prev_channel_id: prevChannelId,
-        };
-        var uri = '/channels/members/me/view';
-        this.client.logger.info("Loading " + uri);
-        return this.client.Api.apiCall('POST', uri, postData, this._onChannelLastViewed);
-    };
-    Channel.prototype.createDirectChannel = function (userID, callback) {
-        var _this = this;
-        var postData = [userID, this.client.self.id];
-        return this.client.Api.apiCall('POST', '/channels/direct', postData, function (data, _headers) {
-            _this.client.logger.info('Created Direct Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Channel.prototype.createGroupChannel = function (userIDs, callback) {
-        var _this = this;
-        return this.client.Api.apiCall('POST', '/channels/group', userIDs, function (data, _headers) {
-            _this.client.logger.info('Created Group Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Channel.prototype.createPrivateChannel = function (privateChannel, callback) {
-        var _this = this;
-        return this.client.Api.apiCall('POST', '/channels', privateChannel, function (data, _headers) {
-            _this.client.logger.info('Created Private Channel.');
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Channel.prototype.addUserToChannel = function (privateChannel, callback) {
-        var _this = this;
-        var uri = "/channels/" + privateChannel.channel_id + "/members";
-        return this.client.Api.apiCall('POST', uri, privateChannel, function (data, _headers) {
-            _this.client.logger.info("Added User to Channel " + privateChannel.channel_id);
-            return (callback != null) ? callback(data) : false;
-        });
-    };
-    Channel.prototype.setChannelHeader = function (channelID, header) {
-        var _this = this;
-        var postData = {
-            channel_id: channelID,
-            channel_header: header,
-        };
-        return this.client.Api.apiCall('POST', this.client.Team.teamRoute() + "/channels/update_header", postData, function (_data, _headers) {
-            _this.client.logger.debug('Channel header updated.');
-            return true;
-        });
-    };
-    Channel.prototype.getAllChannels = function () {
-        return this._channels;
-    };
-    Channel.prototype.getChannelByID = function (id) {
-        return this._channels[id];
-    };
-    Channel.prototype._onChannels = function (data, _headers, _params) {
-        var _this = this;
-        if (data && !data.error) {
-            data.forEach(function (channel) {
-                _this._channels[channel.id] = channel;
-            });
-            this.client.logger.info("Found " + Object.keys(data).length + " subscribed channels.");
-            return this.client.emit('channelsLoaded', data);
-        }
-        this.client.logger.error("Failed to get subscribed channels list from server: " + data.error);
-        return this.client.emit('error', { msg: 'failed to get channel list' });
-    };
-    Channel.prototype._onUnreadsForChannels = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.client.logger.info("Found " + Object.keys(data).length + " information about unreads.");
-            return this.client.emit('channelsUnreadsLoaded', data);
-        }
-        this.client.logger.error("Failed to get unreads of channels from server: " + data.error);
-        return this.client.emit('error', { msg: 'failed to get unreads for channels' });
-    };
-    Channel.prototype._onMembersFromChannels = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.client.logger.info("Found " + Object.keys(data).length + " channels.");
-            return this.client.emit('membersFromChannelsLoaded', data);
-        }
-        this.client.logger.error("Failed to get messages from server: " + data.error);
-        return this.client.emit('error', { msg: 'failed to get all members from channels' });
-    };
-    Channel.prototype._onChannelLastViewed = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.client.logger.info("Found " + Object.keys(data).length + " for last reads.");
-            return this.client.emit('channelLastViewedLoaded', data);
-        }
-        this.client.logger.error("Failed to get last reads of channel(s) from server: " + data.error);
-        return this.client.emit('error', { msg: 'failed to get last reads for channel(s)' });
-    };
-    Object.defineProperty(Channel.prototype, "channels", {
-        get: function () {
-            return this._channels;
-        },
-        set: function (value) {
-            this._channels = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Channel.prototype.channelRoute = function (channelId) {
-        return this.client.Team.teamRoute() + "/channels/" + channelId;
-    };
-    Channel.prototype.findChannelByName = function (name) {
-        var _this = this;
-        var foundChannel = Object.keys(this._channels)
-            .find(function (channel) {
-            var channelName = _this._channels[channel].name;
-            var channelDisplayName = _this._channels[channel].display_name;
-            return channelName === name || channelDisplayName === name;
-        });
-        return foundChannel || null;
-    };
-    return Channel;
-}());
-
 var apiPrefix$1 = '/api/v4';
 var usersRoute = '/users';
 var defaultPingInterval = 60000;
@@ -547,7 +698,6 @@ var Client = (function (_super) {
         _this.host = host;
         _this.group = group;
         _this.options = options || { wssPort: 443, httpPort: 80 };
-        _this.messageMaxRunes = 4000;
         _this.additionalHeaders = {};
         _this.useTLS = !(process.env.MATTERMOST_USE_TLS || '').match(/^false|0|no|off$/i);
         if (typeof options.useTLS !== 'undefined') {
@@ -557,9 +707,6 @@ var Client = (function (_super) {
         if (typeof options.tlsverify !== 'undefined') {
             _this.tlsverify = options.tlsverify;
         }
-        if (typeof options.messageMaxRunes !== 'undefined') {
-            _this.messageMaxRunes = options.messageMaxRunes;
-        }
         if (typeof options.additionalHeaders === 'object') {
             _this.additionalHeaders = options.additionalHeaders;
         }
@@ -567,7 +714,7 @@ var Client = (function (_super) {
         _this.connected = false;
         _this.hasAccessToken = false;
         _this.token = null;
-        _this.self = null;
+        _this.me = null;
         _this.ws = null;
         _this._messageID = 0;
         _this._pending = {};
@@ -608,18 +755,21 @@ var Client = (function (_super) {
         }
         _this.initModules();
         _this.initBindings();
+        if (typeof options.messageMaxRunes !== 'undefined') {
+            _this.Post.messageMaxRunes = options.messageMaxRunes;
+        }
         return _this;
     }
     Client.prototype.initModules = function () {
         this.Api = new Api(this);
         this.Channel = new Channel(this, usersRoute);
+        this.Post = new Post(this);
         this.User = new User(this, usersRoute);
         this.Team = new Team(this, usersRoute);
     };
     Client.prototype.initBindings = function () {
         this._onLogin = this._onLogin.bind(this);
         this._onRevoke = this._onRevoke.bind(this);
-        this._onMessages = this._onMessages.bind(this);
     };
     Client.prototype.login = function (email, password, mfaToken) {
         this.hasAccessToken = false;
@@ -660,8 +810,8 @@ var Client = (function (_super) {
             }
             this.socketUrl = this._getSocketUrl();
             this.logger.info("Websocket URL: " + this.socketUrl);
-            this.self = data;
-            this.emit('loggedIn', this.self);
+            this.me = data;
+            this.emit('loggedIn', this.me);
             this.User.getMe();
             this.User.getPreferences();
             return this.Team.getTeams();
@@ -678,36 +828,6 @@ var Client = (function (_super) {
     };
     Client.prototype._onRevoke = function (data) {
         return this.emit('sessionRevoked', data);
-    };
-    Client.prototype._onMessages = function (data, _headers, _params) {
-        if (data && !data.error) {
-            this.logger.info("Found " + Object.keys(data).length + " messages.");
-            return this.emit('messagesLoaded', data);
-        }
-        this.logger.error("Failed to get messages from server: " + data.error);
-        return this.emit('error', { msg: 'failed to get messages' });
-    };
-    Client.prototype.loadMessagesFromChannel = function (channelId, options) {
-        if (options === void 0) { options = {}; }
-        var uri = "/channels/" + channelId + "/posts";
-        var allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
-        var params = {};
-        Object.entries(options).forEach(function (option) {
-            var key = option[0];
-            var value = option[1];
-            if (allowedOptions.indexOf(key) >= 0) {
-                params[key] = value;
-            }
-        });
-        if (!params.page) {
-            params.page = 0;
-        }
-        if (!params.per_page) {
-            params.per_page = 30;
-        }
-        uri += "?" + querystring.stringify(params);
-        this.logger.info("Loading " + uri);
-        return this.Api.apiCall('GET', uri, params, this._onMessages);
     };
     Client.prototype.connect = function () {
         var _this = this;
@@ -860,25 +980,6 @@ var Client = (function (_super) {
                 return this.logger.debug(message);
         }
     };
-    Client.prototype.customMessage = function (postData, channelID) {
-        var _this = this;
-        var chunks;
-        var postDataExt = __assign({}, postData);
-        if (postDataExt.message != null) {
-            chunks = this._chunkMessage(postData.message);
-            postDataExt.message = chunks.shift();
-        }
-        postDataExt.channel_id = channelID;
-        return this.Api.apiCall('POST', '/posts', postData, function (_data, _headers) {
-            _this.logger.debug('Posted custom message.');
-            if ((chunks != null ? chunks.length : undefined) > 0) {
-                _this.logger.debug("Recursively posting remainder of customMessage: (" + chunks.length + ")");
-                postDataExt.message = chunks.join();
-                return _this.customMessage(postData, channelID);
-            }
-            return true;
-        });
-    };
     Client.prototype.dialog = function (triggerId, url, dialog) {
         var _this = this;
         var postData = {
@@ -888,89 +989,6 @@ var Client = (function (_super) {
         };
         return this.Api.apiCall('POST', '/actions/dialogs/open', postData, function (_data, _headers) {
             _this.logger.debug('Created dialog');
-        });
-    };
-    Client.prototype.editPost = function (postId, msg) {
-        var _this = this;
-        var postData = msg;
-        if (typeof msg === 'string') {
-            postData = {
-                id: postId,
-                message: msg,
-            };
-        }
-        return this.Api.apiCall('PUT', "/posts/" + postId, postData, function (_data, _headers) {
-            _this.logger.debug('Edited post');
-        });
-    };
-    Client.prototype.uploadFile = function (channelId, file, callback) {
-        var _this = this;
-        var formData = {
-            channel_id: channelId,
-            files: file,
-        };
-        return this.Api.apiCall('POST', '/files', formData, function (data, _headers) {
-            _this.logger.debug('Posted file');
-            return callback(data);
-        }, {}, true);
-    };
-    Client.prototype.react = function (messageID, emoji) {
-        var _this = this;
-        var postData = {
-            user_id: this.self.id,
-            post_id: messageID,
-            emoji_name: emoji,
-            create_at: 0,
-        };
-        return this.Api.apiCall('POST', '/reactions', postData, function (_data, _headers) {
-            _this.logger.debug('Created reaction');
-        });
-    };
-    Client.prototype.unreact = function (messageID, emoji) {
-        var _this = this;
-        var uri = "/users/me/posts/" + messageID + "/reactions/" + emoji;
-        return this.Api.apiCall('DELETE', uri, [], function (_data, _headers) {
-            _this.logger.debug('Deleted reaction');
-        });
-    };
-    Client.prototype._chunkMessage = function (msg) {
-        if (!msg) {
-            return [''];
-        }
-        return msg.match(new RegExp("(.|[\r\n]){1," + this.messageMaxRunes + "}", 'g'));
-    };
-    Client.prototype.postMessage = function (msg, channelID) {
-        var _this = this;
-        var postData = {
-            message: msg,
-            file_ids: [],
-            create_at: 0,
-            user_id: this.self.id,
-            channel_id: channelID,
-        };
-        if (typeof msg === 'string') {
-            postData.message = msg;
-        }
-        else {
-            postData.message = msg.message;
-            if (msg.props) {
-                postData.props = msg.props;
-            }
-            if (msg.file_ids) {
-                postData.file_ids = msg.file_ids;
-            }
-        }
-        var chunks = this._chunkMessage(postData.message);
-        postData.message = chunks.shift();
-        return this.Api.apiCall('POST', '/posts', postData, function (_data, _headers) {
-            _this.logger.debug('Posted message.');
-            if ((chunks != null ? chunks.length : undefined) > 0) {
-                var message = chunks.join();
-                var chunksLenght = chunks ? chunks.length : undefined;
-                _this.logger.debug("Recursively posting remainder of message: (" + chunksLenght + ")");
-                return _this.postMessage(message, channelID);
-            }
-            return true;
         });
     };
     Client.prototype._send = function (message) {

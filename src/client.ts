@@ -33,8 +33,6 @@ class Client extends EventEmitter {
 
     token: string;
 
-    self: any;
-
     ws: any;
 
     _messageID: number;
@@ -107,7 +105,7 @@ class Client extends EventEmitter {
         this.hasAccessToken = false;
         this.token = null;
 
-        this.self = null;
+        this.me = null;
 
         this.ws = null;
         this._messageID = 0;
@@ -230,8 +228,8 @@ class Client extends EventEmitter {
             }
             this.socketUrl = this._getSocketUrl();
             this.logger.info(`Websocket URL: ${this.socketUrl}`);
-            this.self = data;
-            this.emit('loggedIn', this.self);
+            this.me = data;
+            this.emit('loggedIn', this.me);
             this.User.getMe();
             this.User.getPreferences();
             return this.Team.getTeams();

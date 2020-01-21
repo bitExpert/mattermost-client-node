@@ -63,7 +63,7 @@ class Post {
             // eslint-disable-next-line @typescript-eslint/camelcase
             create_at: 0,
             // eslint-disable-next-line @typescript-eslint/camelcase
-            user_id: this.client.self.id,
+            user_id: this.client.me.id,
             // eslint-disable-next-line @typescript-eslint/camelcase
             channel_id: channelID,
         };
@@ -170,7 +170,7 @@ class Post {
     react(messageID: string, emoji: string): any {
         const postData = {
             // eslint-disable-next-line @typescript-eslint/camelcase
-            user_id: this.client.self.id,
+            user_id: this.client.me.id,
             // eslint-disable-next-line @typescript-eslint/camelcase
             post_id: messageID,
             // eslint-disable-next-line @typescript-eslint/camelcase
