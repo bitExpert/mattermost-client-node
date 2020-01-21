@@ -26,7 +26,9 @@
     "src/team.ts",
     "src/websocket.ts",
     "src/interfaces/channel.ts",
-    "src/interfaces/message.ts",
+    "src/interfaces/options.ts",
+    "src/interfaces/notifyProps.ts",
+    "src/interfaces/post.ts",
     "src/interfaces/team.ts",
     "src/interfaces/user.ts"
   ]

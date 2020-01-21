@@ -12,6 +12,8 @@ interface IUser {
     last_name: string;
     position: string;
     roles: string;
+    notify_props?: INotifyProps;
+    last_password_update?: number;
     locale: string;
     timezone: {
         automaticTimezone: string;

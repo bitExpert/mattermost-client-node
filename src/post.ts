@@ -33,8 +33,7 @@ class Post {
         const allowedOptions = ['page', 'per_page', 'since', 'before', 'after'];
         const params: any = {};
         Object.entries(options).forEach((option: any) => {
-            const key = option[0];
-            const value = option[1];
+            const [key, value] = option;
             if (allowedOptions.indexOf(key) >= 0) {
                 params[key] = value;
             }

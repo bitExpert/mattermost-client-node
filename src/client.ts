@@ -13,9 +13,9 @@ const usersRoute = '/users';
 class Client extends EventEmitter {
     host: string;
 
-    group: string;
+    team: string;
 
-    options: any;
+    options: IOptions;
 
     logger: any;
 
@@ -35,11 +35,12 @@ class Client extends EventEmitter {
 
     Websocket: Websocket;
 
-    constructor(host: string, group: string, options: any) {
+    // @Todo change "group" to "team"
+    constructor(host: string, team: string, options: IOptions) {
         super();
 
         this.host = host;
-        this.group = group;
+        this.team = team;
         this.options = options || { wssPort: 443, httpPort: 80 };
         this._setLogger();
         this.initModules();

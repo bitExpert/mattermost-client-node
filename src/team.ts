@@ -119,8 +119,8 @@ class Team {
             this.client.logger.info(`Found ${Object.keys(this._teams).length} teams.`);
             this._teams
                 .find((team: any) => {
-                    const isTeamFound = team.name.toLowerCase() === this.client.group.toLowerCase();
-                    this.client.logger.debug(`Testing ${team.name} == ${this.client.group}`);
+                    const isTeamFound = team.name.toLowerCase() === this.client.team.toLowerCase();
+                    this.client.logger.debug(`Testing ${team.name} == ${this.client.team}`);
                     if (isTeamFound) {
                         this._teamID = team.id;
                         this.client.logger.info(`Found team! ${team.id}`);
