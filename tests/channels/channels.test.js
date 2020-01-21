@@ -17,7 +17,7 @@ export default (Client) => describe('channels', () => {
     });
 
     afterAll(() => {
-        client.disconnect();
+        client.Websocket.disconnect();
     });
 
     /*

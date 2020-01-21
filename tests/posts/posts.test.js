@@ -18,7 +18,7 @@ export default (Client) => describe('posts', () => {
     });
 
     afterAll(() => {
-        client.disconnect();
+        client.Websocket.disconnect();
     });
     /*
     beforeEach((done) => {

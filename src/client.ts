@@ -1,16 +1,13 @@
-import WebSocket from 'isomorphic-ws';
 import Log from 'log';
 import { EventEmitter } from 'events';
-import HttpsProxyAgent from 'https-proxy-agent';
 import Api from './api';
 import Channel from './channel';
 import Post from './post';
 import Team from './team';
 import User from './user';
+import Websocket from './websocket';
 
-const apiPrefix = '/api/v4';
 const usersRoute = '/users';
-const defaultPingInterval = 60000;
 
 class Client extends EventEmitter {
     host: string;
@@ -27,29 +24,11 @@ class Client extends EventEmitter {
 
     authenticated: boolean;
 
-    connected: boolean;
-
     hasAccessToken: boolean;
 
     token: string;
 
-    ws: any;
-
-    _messageID: number;
-
-    _pending: any;
-
-    _pingInterval: any;
-
-    autoReconnect: boolean;
-
     httpProxy: any;
-
-    _connecting: boolean;
-
-    _reconnecting: boolean;
-
-    _connAttempts: number;
 
     logger: any;
 
@@ -59,15 +38,9 @@ class Client extends EventEmitter {
 
     mfaToken: string;
 
-    socketUrl: string;
-
     preferences: any;
 
     me: any;
-
-    _lastPong: number;
-
-    _pongTimeout: NodeJS.Timeout;
 
     Api: Api;
 
@@ -78,6 +51,8 @@ class Client extends EventEmitter {
     User: User;
 
     Team: Team;
+
+    Websocket: Websocket;
 
     constructor(host: string, group: string, options: any) {
         super();
@@ -101,29 +76,12 @@ class Client extends EventEmitter {
         }
 
         this.authenticated = false;
-        this.connected = false;
         this.hasAccessToken = false;
         this.token = null;
 
         this.me = null;
 
-        this.ws = null;
-        this._messageID = 0;
-        this._pending = {};
-
-        this._pingInterval = (this.options.pingInterval != null)
-            ? this.options.pingInterval
-            : defaultPingInterval;
-
-        this.autoReconnect = (this.options.autoReconnect != null)
-            ? this.options.autoReconnect
-            : true;
-
         this.httpProxy = (this.options.httpProxy != null) ? this.options.httpProxy : false;
-        this._connecting = false;
-        this._reconnecting = false;
-
-        this._connAttempts = 0;
 
         process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
 
@@ -170,6 +128,7 @@ class Client extends EventEmitter {
         this.Post = new Post(this);
         this.User = new User(this, usersRoute);
         this.Team = new Team(this, usersRoute);
+        this.Websocket = new Websocket(this);
     }
 
     initBindings(): any {
@@ -217,8 +176,8 @@ class Client extends EventEmitter {
                 this.logger.error('Login call failed', JSON.stringify(data));
                 this.emit('error', data);
                 this.authenticated = false;
-                this._reconnecting = false;
-                return this.reconnect();
+                this.Websocket.reconnecting = false;
+                return this.Websocket.reconnect();
             }
             this.authenticated = true;
             // Continue happy flow here
@@ -226,8 +185,8 @@ class Client extends EventEmitter {
                 this.token = headers.token;
                 this.Api.token = headers.token;
             }
-            this.socketUrl = this._getSocketUrl();
-            this.logger.info(`Websocket URL: ${this.socketUrl}`);
+            this.Websocket.socketUrl = this.Websocket.getSocketUrl();
+            this.logger.info(`Websocket URL: ${this.Websocket.socketUrl}`);
             this.me = data;
             this.emit('loggedIn', this.me);
             this.User.getMe();
@@ -236,185 +195,11 @@ class Client extends EventEmitter {
         }
         this.emit('error', data);
         this.authenticated = false;
-        return this.reconnect();
-    }
-
-    _getSocketUrl() {
-        const protocol = this.useTLS ? 'wss://' : 'ws://';
-        const httpPort = this.options.httpPort ? `:${this.options.httpPort}` : '';
-        const wssPort = this.useTLS && this.options.wssPort ? `:${this.options.wssPort}` : httpPort;
-        return `${protocol + this.host + wssPort + apiPrefix}/websocket`;
+        return this.Websocket.reconnect();
     }
 
     _onRevoke(data: any) {
         return this.emit('sessionRevoked', data);
-    }
-
-    connect() {
-        if (this._connecting) { return; }
-
-        this._connecting = true;
-        this.logger.info('Connecting...');
-        const options: any = { rejectUnauthorized: this.tlsverify };
-
-        if (this.httpProxy) { options.agent = new HttpsProxyAgent(this.httpProxy); }
-
-        // Set up websocket connection to server
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-        this.ws = new WebSocket(this.socketUrl, options);
-
-        this.ws.on('error', (error: any) => {
-            this._connecting = false;
-            return this.emit('error', error);
-        });
-
-        this.ws.on('open', () => {
-            this._connecting = false;
-            this._reconnecting = false;
-            this.connected = true;
-            this.emit('connected');
-            this._connAttempts = 0;
-            this._lastPong = Date.now();
-            const challenge = {
-                action: 'authentication_challenge',
-                data: {
-                    token: this.token,
-                },
-            };
-            this.logger.info('Sending challenge...');
-            this._send(challenge);
-            this.logger.info('Starting pinger...');
-            this._pongTimeout = setInterval(() => {
-                if (!this.connected) {
-                    this.logger.error('Not connected in pongTimeout');
-                    this.reconnect();
-                    return;
-                }
-                if (this._lastPong && (Date.now() - this._lastPong) > (2 * this._pingInterval)) {
-                    this.logger.error('Last pong is too old: %d', (Date.now() - this._lastPong) / 1000);
-                    this.authenticated = false;
-                    this.connected = false;
-                    this.reconnect();
-                    return;
-                }
-                this.logger.info('ping');
-                this._send({ action: 'ping' });
-            }, this._pingInterval);
-            return this._pongTimeout;
-        });
-
-        this.ws.on('message', (data: any, _flags: any) => {
-            this.onMessage(JSON.parse(data));
-        });
-
-        this.ws.on('close', (code: any, message: any) => {
-            this.emit('close', code, message);
-            this._connecting = false;
-            this.connected = false;
-            this.socketUrl = null;
-            return this.reconnect();
-        });
-    }
-
-    reconnect() {
-        if (this.autoReconnect) {
-            if (this._reconnecting) {
-                this.logger.info('WARNING: Already reconnecting.');
-            }
-            this._connecting = false;
-            this._reconnecting = true;
-
-            if (this._pongTimeout) {
-                clearInterval(this._pongTimeout);
-                this._pongTimeout = null;
-            }
-            this.authenticated = false;
-
-            if (this.ws) {
-                this.ws.close();
-            }
-
-            this._connAttempts += 1;
-
-            const timeout = this._connAttempts * 1000;
-            this.logger.info('Reconnecting in %dms', timeout);
-            return setTimeout(
-                () => {
-                    this.logger.info('Attempting reconnect');
-                    if (this.hasAccessToken) {
-                        return this.tokenLogin(this.token);
-                    }
-                    return this.login(this.email, this.password, this.mfaToken);
-                },
-                timeout,
-            );
-        }
-        return false;
-    }
-
-    disconnect(): boolean {
-        if (!this.connected) {
-            return false;
-        }
-        this.autoReconnect = false;
-        if (this._pongTimeout) {
-            clearInterval(this._pongTimeout);
-            this._pongTimeout = null;
-        }
-        this.ws.close();
-        return true;
-    }
-
-    onMessage(message: any): any {
-        this.emit('raw_message', message);
-        switch (message.event) {
-        case 'ping':
-            // Deprecated
-            this.logger.info('ACK ping');
-            this._lastPong = Date.now();
-            return this.emit('ping', message);
-        case 'posted':
-            return this.emit('message', message);
-        case 'added_to_team':
-        case 'authentication_challenge':
-        case 'channel_converted':
-        case 'channel_created':
-        case 'channel_deleted':
-        case 'channel_member_updated':
-        case 'channel_updated':
-        case 'channel_viewed':
-        case 'config_changed':
-        case 'delete_team':
-        case 'ephemeral_message':
-        case 'hello':
-        case 'typing':
-        case 'post_edit':
-        case 'post_deleted':
-        case 'preference_changed':
-        case 'user_added':
-        case 'user_removed':
-        case 'user_role_updated':
-        case 'user_updated':
-        case 'status_change':
-        case 'webrtc':
-            // Generic handler
-            return this.emit(message.event, message);
-        case 'new_user':
-            this.User.loadUser(message.data.user_id);
-            return this.emit('new_user', message);
-        default:
-            // Check for `pong` response
-            if ((message.data ? message.data.text : undefined) && (message.data.text === 'pong')) {
-                this.logger.info('ACK ping (2)');
-                this._lastPong = Date.now();
-                return this.emit('ping', message);
-            }
-            this.logger.debug('Received unhandled message:');
-            return this.logger.debug(message);
-        }
     }
 
     dialog(triggerId: string, url: string, dialog: any) {
@@ -432,20 +217,6 @@ class Client extends EventEmitter {
                 this.logger.debug('Created dialog');
             },
         );
-    }
-
-    // Private functions
-    _send(message: any): any {
-        const messageExt = { ...message };
-        if (!this.connected) {
-            return false;
-        }
-        this._messageID += 1;
-        messageExt.id = this._messageID;
-        messageExt.seq = messageExt.id;
-        this._pending[messageExt.id] = messageExt;
-        this.ws.send(JSON.stringify(messageExt));
-        return messageExt;
     }
 }
 

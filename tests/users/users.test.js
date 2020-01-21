@@ -22,7 +22,7 @@ export default (Client) => describe('users', () => {
     });
 
     afterAll(() => {
-        client.disconnect();
+        client.Websocket.disconnect();
     });
     /*
     beforeEach((done) => {

@@ -31,6 +31,6 @@ export default (Client) => describe('options', () => {
         expect(requestObj.headers).toHaveProperty('some-header');
         expect(requestObj.headers).toHaveProperty('some-header', 'some-header-value');
         done();
-        client.disconnect();
+        client.Websocket.disconnect();
     });
 });

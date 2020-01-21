@@ -1,10 +1,10 @@
-import WebSocket from 'isomorphic-ws';
 import Log from 'log';
 import { EventEmitter } from 'events';
-import HttpsProxyAgent from 'https-proxy-agent';
 import TextEncoding from 'text-encoding';
 import request from 'request';
 import querystring from 'querystring';
+import WebSocket from 'isomorphic-ws';
+import HttpsProxyAgent from 'https-proxy-agent';
 
 /*! *****************************************************************************
 Copyright (c) Microsoft Corporation. All rights reserved.
@@ -684,9 +684,214 @@ var User = (function () {
     return User;
 }());
 
-var apiPrefix$1 = '/api/v4';
+var Websocket = (function () {
+    function Websocket(client) {
+        this.apiPrefix = '/api/v4';
+        this._ws = null;
+        this._connected = false;
+        this._connecting = false;
+        this._reconnecting = false;
+        this._connAttempts = 0;
+        this._autoReconnect = true;
+        this._pingInterval = 60000;
+        this._messageID = 0;
+        this._pending = {};
+        this.client = client;
+        if (this.client.options.pingInterval != null) {
+            this._pingInterval = this.client.options.pingInterval;
+        }
+        if (this.client.options.autoReconnect != null) {
+            this._autoReconnect = this.client.options.autoReconnect;
+        }
+    }
+    Websocket.prototype.connect = function () {
+        var _this = this;
+        if (this._connecting) {
+            return;
+        }
+        this._connecting = true;
+        this.client.logger.info('Connecting...');
+        var options = { rejectUnauthorized: this.client.tlsverify };
+        if (this.client.httpProxy) {
+            options.agent = new HttpsProxyAgent(this.client.httpProxy);
+        }
+        if (this._ws) {
+            this._ws.close();
+            this._ws = null;
+        }
+        this._ws = new WebSocket(this._socketUrl, options);
+        this._ws.on('error', function (error) {
+            _this._connecting = false;
+            return _this.client.emit('error', error);
+        });
+        this._ws.on('open', function () {
+            _this._connecting = false;
+            _this._reconnecting = false;
+            _this._connected = true;
+            _this.client.emit('connected');
+            _this._connAttempts = 0;
+            _this._lastPong = Date.now();
+            var challenge = {
+                action: 'authentication_challenge',
+                data: {
+                    token: _this.client.token,
+                },
+            };
+            _this.client.logger.info('Sending challenge...');
+            _this._send(challenge);
+            _this.client.logger.info('Starting pinger...');
+            _this._pongTimeout = setInterval(function () {
+                if (!_this._connected) {
+                    _this.client.logger.error('Not connected in pongTimeout');
+                    _this.reconnect();
+                    return;
+                }
+                if (_this._lastPong && (Date.now() - _this._lastPong) > (2 * _this._pingInterval)) {
+                    _this.client.logger.error('Last pong is too old: %d', (Date.now() - _this._lastPong) / 1000);
+                    _this.client.authenticated = false;
+                    _this._connected = false;
+                    _this.reconnect();
+                    return;
+                }
+                _this.client.logger.info('ping');
+                _this._send({ action: 'ping' });
+            }, _this._pingInterval);
+            return _this._pongTimeout;
+        });
+        this._ws.on('message', function (data, _flags) {
+            _this.onMessage(JSON.parse(data));
+        });
+        this._ws.on('close', function (code, message) {
+            _this.client.emit('close', code, message);
+            _this._connecting = false;
+            _this._connected = false;
+            _this._socketUrl = null;
+            return _this.reconnect();
+        });
+    };
+    Websocket.prototype.reconnect = function () {
+        var _this = this;
+        if (this._autoReconnect) {
+            if (this._reconnecting) {
+                this.client.logger.info('WARNING: Already reconnecting.');
+            }
+            this._connecting = false;
+            this._reconnecting = true;
+            if (this._pongTimeout) {
+                clearInterval(this._pongTimeout);
+                this._pongTimeout = null;
+            }
+            this.client.authenticated = false;
+            if (this._ws) {
+                this._ws.close();
+            }
+            this._connAttempts += 1;
+            var timeout = this._connAttempts * 1000;
+            this.client.logger.info('Reconnecting in %dms', timeout);
+            return setTimeout(function () {
+                _this.client.logger.info('Attempting reconnect');
+                if (_this.client.hasAccessToken) {
+                    return _this.client.tokenLogin(_this.client.token);
+                }
+                return _this.client.login(_this.client.email, _this.client.password, _this.client.mfaToken);
+            }, timeout);
+        }
+        return false;
+    };
+    Websocket.prototype.disconnect = function () {
+        if (!this._connected) {
+            return false;
+        }
+        this._autoReconnect = false;
+        if (this._pongTimeout) {
+            clearInterval(this._pongTimeout);
+            this._pongTimeout = null;
+        }
+        this._ws.close();
+        return true;
+    };
+    Websocket.prototype.onMessage = function (message) {
+        this.client.emit('raw_message', message);
+        switch (message.event) {
+            case 'ping':
+                this.client.logger.info('ACK ping');
+                this._lastPong = Date.now();
+                return this.client.emit('ping', message);
+            case 'posted':
+                return this.client.emit('message', message);
+            case 'added_to_team':
+            case 'authentication_challenge':
+            case 'channel_converted':
+            case 'channel_created':
+            case 'channel_deleted':
+            case 'channel_member_updated':
+            case 'channel_updated':
+            case 'channel_viewed':
+            case 'config_changed':
+            case 'delete_team':
+            case 'ephemeral_message':
+            case 'hello':
+            case 'typing':
+            case 'post_edit':
+            case 'post_deleted':
+            case 'preference_changed':
+            case 'user_added':
+            case 'user_removed':
+            case 'user_role_updated':
+            case 'user_updated':
+            case 'status_change':
+            case 'webrtc':
+                return this.client.emit(message.event, message);
+            case 'new_user':
+                this.client.User.loadUser(message.data.user_id);
+                return this.client.emit('new_user', message);
+            default:
+                if ((message.data ? message.data.text : undefined)
+                    && (message.data.text === 'pong')) {
+                    this.client.logger.info('ACK ping (2)');
+                    this.client._lastPong = Date.now();
+                    return this.client.emit('ping', message);
+                }
+                this.client.logger.debug('Received unhandled message:');
+                return this.client.logger.debug(message);
+        }
+    };
+    Object.defineProperty(Websocket.prototype, "reconnecting", {
+        set: function (value) {
+            this._reconnecting = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Websocket.prototype, "socketUrl", {
+        set: function (value) {
+            this._socketUrl = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Websocket.prototype._send = function (message) {
+        var messageExt = __assign({}, message);
+        if (!this._connected) {
+            return false;
+        }
+        this._messageID += 1;
+        messageExt.id = this._messageID;
+        messageExt.seq = messageExt.id;
+        this._pending[messageExt.id] = messageExt;
+        this._ws.send(JSON.stringify(messageExt));
+        return messageExt;
+    };
+    Websocket.prototype.getSocketUrl = function () {
+        var protocol = this.client.useTLS ? 'wss://' : 'ws://';
+        var httpPort = this.client.options.httpPort ? ":" + this.client.options.httpPort : '';
+        var wssPort = this.client.useTLS && this.client.options.wssPort ? ":" + this.client.options.wssPort : httpPort;
+        return protocol + this.client.host + wssPort + this.apiPrefix + "/websocket";
+    };
+    return Websocket;
+}());
+
 var usersRoute = '/users';
-var defaultPingInterval = 60000;
 var Client = (function (_super) {
     __extends(Client, _super);
     function Client(host, group, options) {
@@ -707,23 +912,10 @@ var Client = (function (_super) {
             _this.additionalHeaders = options.additionalHeaders;
         }
         _this.authenticated = false;
-        _this.connected = false;
         _this.hasAccessToken = false;
         _this.token = null;
         _this.me = null;
-        _this.ws = null;
-        _this._messageID = 0;
-        _this._pending = {};
-        _this._pingInterval = (_this.options.pingInterval != null)
-            ? _this.options.pingInterval
-            : defaultPingInterval;
-        _this.autoReconnect = (_this.options.autoReconnect != null)
-            ? _this.options.autoReconnect
-            : true;
         _this.httpProxy = (_this.options.httpProxy != null) ? _this.options.httpProxy : false;
-        _this._connecting = false;
-        _this._reconnecting = false;
-        _this._connAttempts = 0;
         process.env.LOG_LEVEL = process.env.MATTERMOST_LOG_LEVEL || 'info';
         if (typeof options.logger !== 'undefined') {
             switch (options.logger) {
@@ -762,6 +954,7 @@ var Client = (function (_super) {
         this.Post = new Post(this);
         this.User = new User(this, usersRoute);
         this.Team = new Team(this, usersRoute);
+        this.Websocket = new Websocket(this);
     };
     Client.prototype.initBindings = function () {
         this._onLogin = this._onLogin.bind(this);
@@ -796,16 +989,16 @@ var Client = (function (_super) {
                 this.logger.error('Login call failed', JSON.stringify(data));
                 this.emit('error', data);
                 this.authenticated = false;
-                this._reconnecting = false;
-                return this.reconnect();
+                this.Websocket.reconnecting = false;
+                return this.Websocket.reconnect();
             }
             this.authenticated = true;
             if (!this.hasAccessToken) {
                 this.token = headers.token;
                 this.Api.token = headers.token;
             }
-            this.socketUrl = this._getSocketUrl();
-            this.logger.info("Websocket URL: " + this.socketUrl);
+            this.Websocket.socketUrl = this.Websocket.getSocketUrl();
+            this.logger.info("Websocket URL: " + this.Websocket.socketUrl);
             this.me = data;
             this.emit('loggedIn', this.me);
             this.User.getMe();
@@ -814,167 +1007,10 @@ var Client = (function (_super) {
         }
         this.emit('error', data);
         this.authenticated = false;
-        return this.reconnect();
-    };
-    Client.prototype._getSocketUrl = function () {
-        var protocol = this.useTLS ? 'wss://' : 'ws://';
-        var httpPort = this.options.httpPort ? ":" + this.options.httpPort : '';
-        var wssPort = this.useTLS && this.options.wssPort ? ":" + this.options.wssPort : httpPort;
-        return protocol + this.host + wssPort + apiPrefix$1 + "/websocket";
+        return this.Websocket.reconnect();
     };
     Client.prototype._onRevoke = function (data) {
         return this.emit('sessionRevoked', data);
-    };
-    Client.prototype.connect = function () {
-        var _this = this;
-        if (this._connecting) {
-            return;
-        }
-        this._connecting = true;
-        this.logger.info('Connecting...');
-        var options = { rejectUnauthorized: this.tlsverify };
-        if (this.httpProxy) {
-            options.agent = new HttpsProxyAgent(this.httpProxy);
-        }
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-        this.ws = new WebSocket(this.socketUrl, options);
-        this.ws.on('error', function (error) {
-            _this._connecting = false;
-            return _this.emit('error', error);
-        });
-        this.ws.on('open', function () {
-            _this._connecting = false;
-            _this._reconnecting = false;
-            _this.connected = true;
-            _this.emit('connected');
-            _this._connAttempts = 0;
-            _this._lastPong = Date.now();
-            var challenge = {
-                action: 'authentication_challenge',
-                data: {
-                    token: _this.token,
-                },
-            };
-            _this.logger.info('Sending challenge...');
-            _this._send(challenge);
-            _this.logger.info('Starting pinger...');
-            _this._pongTimeout = setInterval(function () {
-                if (!_this.connected) {
-                    _this.logger.error('Not connected in pongTimeout');
-                    _this.reconnect();
-                    return;
-                }
-                if (_this._lastPong && (Date.now() - _this._lastPong) > (2 * _this._pingInterval)) {
-                    _this.logger.error('Last pong is too old: %d', (Date.now() - _this._lastPong) / 1000);
-                    _this.authenticated = false;
-                    _this.connected = false;
-                    _this.reconnect();
-                    return;
-                }
-                _this.logger.info('ping');
-                _this._send({ action: 'ping' });
-            }, _this._pingInterval);
-            return _this._pongTimeout;
-        });
-        this.ws.on('message', function (data, _flags) {
-            _this.onMessage(JSON.parse(data));
-        });
-        this.ws.on('close', function (code, message) {
-            _this.emit('close', code, message);
-            _this._connecting = false;
-            _this.connected = false;
-            _this.socketUrl = null;
-            return _this.reconnect();
-        });
-    };
-    Client.prototype.reconnect = function () {
-        var _this = this;
-        if (this.autoReconnect) {
-            if (this._reconnecting) {
-                this.logger.info('WARNING: Already reconnecting.');
-            }
-            this._connecting = false;
-            this._reconnecting = true;
-            if (this._pongTimeout) {
-                clearInterval(this._pongTimeout);
-                this._pongTimeout = null;
-            }
-            this.authenticated = false;
-            if (this.ws) {
-                this.ws.close();
-            }
-            this._connAttempts += 1;
-            var timeout = this._connAttempts * 1000;
-            this.logger.info('Reconnecting in %dms', timeout);
-            return setTimeout(function () {
-                _this.logger.info('Attempting reconnect');
-                if (_this.hasAccessToken) {
-                    return _this.tokenLogin(_this.token);
-                }
-                return _this.login(_this.email, _this.password, _this.mfaToken);
-            }, timeout);
-        }
-        return false;
-    };
-    Client.prototype.disconnect = function () {
-        if (!this.connected) {
-            return false;
-        }
-        this.autoReconnect = false;
-        if (this._pongTimeout) {
-            clearInterval(this._pongTimeout);
-            this._pongTimeout = null;
-        }
-        this.ws.close();
-        return true;
-    };
-    Client.prototype.onMessage = function (message) {
-        this.emit('raw_message', message);
-        switch (message.event) {
-            case 'ping':
-                this.logger.info('ACK ping');
-                this._lastPong = Date.now();
-                return this.emit('ping', message);
-            case 'posted':
-                return this.emit('message', message);
-            case 'added_to_team':
-            case 'authentication_challenge':
-            case 'channel_converted':
-            case 'channel_created':
-            case 'channel_deleted':
-            case 'channel_member_updated':
-            case 'channel_updated':
-            case 'channel_viewed':
-            case 'config_changed':
-            case 'delete_team':
-            case 'ephemeral_message':
-            case 'hello':
-            case 'typing':
-            case 'post_edit':
-            case 'post_deleted':
-            case 'preference_changed':
-            case 'user_added':
-            case 'user_removed':
-            case 'user_role_updated':
-            case 'user_updated':
-            case 'status_change':
-            case 'webrtc':
-                return this.emit(message.event, message);
-            case 'new_user':
-                this.User.loadUser(message.data.user_id);
-                return this.emit('new_user', message);
-            default:
-                if ((message.data ? message.data.text : undefined) && (message.data.text === 'pong')) {
-                    this.logger.info('ACK ping (2)');
-                    this._lastPong = Date.now();
-                    return this.emit('ping', message);
-                }
-                this.logger.debug('Received unhandled message:');
-                return this.logger.debug(message);
-        }
     };
     Client.prototype.dialog = function (triggerId, url, dialog) {
         var _this = this;
@@ -986,18 +1022,6 @@ var Client = (function (_super) {
         return this.Api.apiCall('POST', '/actions/dialogs/open', postData, function (_data, _headers) {
             _this.logger.debug('Created dialog');
         });
-    };
-    Client.prototype._send = function (message) {
-        var messageExt = __assign({}, message);
-        if (!this.connected) {
-            return false;
-        }
-        this._messageID += 1;
-        messageExt.id = this._messageID;
-        messageExt.seq = messageExt.id;
-        this._pending[messageExt.id] = messageExt;
-        this.ws.send(JSON.stringify(messageExt));
-        return messageExt;
     };
     return Client;
 }(EventEmitter));

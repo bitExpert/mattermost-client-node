@@ -18,7 +18,7 @@ export default (Client) => describe('teams', () => {
     });
 
     afterAll(() => {
-        client.disconnect();
+        client.Websocket.disconnect();
     });
 
     /*
