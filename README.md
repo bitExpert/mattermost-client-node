@@ -4,6 +4,14 @@
 
 Mattermost client which uses the Web API and websockets, forked from [loafoe's mattermost client](https://github.com/loafoe/mattermost-client), extended and refactored.
 
+# Install
+
+```shell
+yarn add mattermost-client-node
+# or
+npm i mattermost-client-node
+```
+
 # Features
 
 The client was primarily written for use by the [Matteruser](https://github.com/loafoe/hubot-matteruser) Hubot adapter.
