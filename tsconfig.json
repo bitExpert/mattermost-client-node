@@ -17,10 +17,18 @@
     "target": "es2018"
   },
   "files": [
+    "src/api.ts",
+    "src/authentication.ts",
+    "src/channel.ts",
     "src/client.ts",
+    "src/post.ts",
+    "src/team.ts",
     "src/user.ts",
+    "src/websocket.ts",
     "src/interfaces/channel.ts",
-    "src/interfaces/message.ts",
+    "src/interfaces/notifyProps.ts",
+    "src/interfaces/options.ts",
+    "src/interfaces/post.ts",
     "src/interfaces/team.ts",
     "src/interfaces/user.ts"
   ]

@@ -14,11 +14,11 @@ export default (Client) => describe('teams', () => {
         client.on('loggedIn', () => {
             done();
         });
-        client.login(ADMIN.email, ADMIN.password, null);
+        client.Authentication.login(ADMIN.email, ADMIN.password, null);
     });
 
     afterAll(() => {
-        client.disconnect();
+        client.Websocket.disconnect();
     });
 
     /*
@@ -36,7 +36,7 @@ export default (Client) => describe('teams', () => {
             });
             done();
         });
-        client.getTeams();
+        client.Team.getTeams();
     });
 
     test('get team by name', (done) => {
@@ -45,21 +45,10 @@ export default (Client) => describe('teams', () => {
             teamID = teamData.id;
             done();
         });
-        client.getTeamByName(ADMIN.team);
+        client.Team.getTeamByName(ADMIN.team);
     });
 
     test('return teams route', () => {
-        expect(client.teamRoute()).toEqual(`/users/me/teams/${teamID}`);
-    });
-
-    // sets `privateChannel` and `publicChannel` which is needed for some further tests
-    test('get all channels from current team for user', (done) => {
-        client.on('channelsLoaded', (channelData) => {
-            channelData.forEach((channel) => {
-                expect(channel).toMatchObject(CHANNEL.mock);
-            });
-            done();
-        });
-        client.loadChannels();
+        expect(client.Team.teamRoute()).toEqual(`/users/me/teams/${teamID}`);
     });
 });

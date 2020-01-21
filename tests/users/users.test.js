@@ -18,11 +18,11 @@ export default (Client) => describe('users', () => {
             currentUser = userData;
             done();
         });
-        client.login(ADMIN.email, ADMIN.password, null);
+        client.Authentication.login(ADMIN.email, ADMIN.password, null);
     });
 
     afterAll(() => {
-        client.disconnect();
+        client.Websocket.disconnect();
     });
     /*
     beforeEach((done) => {
@@ -39,7 +39,17 @@ export default (Client) => describe('users', () => {
             expect(user).toEqual(currentUser);
             done();
         });
-        client.getMe();
+        client.User.getMe();
+    });
+
+    test('get users preferences', (done) => {
+        client.on('preferencesLoaded', (preferences) => {
+            preferences.forEach((preference) => {
+                expect(preference).toMatchObject(PREFERENCES.mock);
+            });
+            done();
+        });
+        client.User.getPreferences();
     });
 
     test('get teams for user', (done) => {
@@ -49,7 +59,7 @@ export default (Client) => describe('users', () => {
             });
             done();
         });
-        client.getTeams();
+        client.Team.getTeams();
     });
 
     test('get team by name', (done) => {
@@ -57,7 +67,7 @@ export default (Client) => describe('users', () => {
             expect(teamData).toMatchObject(TEAM.mock);
             done();
         });
-        client.getTeamByName(ADMIN.team);
+        client.Team.getTeamByName(ADMIN.team);
     });
 
     // sets `differentUser` which is needed for some further tests
@@ -72,7 +82,7 @@ export default (Client) => describe('users', () => {
             });
             done();
         });
-        client.loadUsers();
+        client.User.loadUsers();
     });
 
     test('get single user by ID from API', (done) => {
@@ -82,14 +92,14 @@ export default (Client) => describe('users', () => {
             done();
         });
         // `differentUser` gets set in 'get all available users'
-        client.loadUser(differentUser.id);
+        client.User.loadUser(differentUser.id);
     });
 
     test('get single user by ID from client', (done) => {
         // `differentUser` gets set in 'get all available users'
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
         expect(differentUser).not.toBeNull();
-        const user = client.getUserByID(differentUser.id);
+        const user = client.User.getUserByID(differentUser.id);
         expect(user).toMatchObject(ALLUSERS.mock);
         done();
     });
@@ -98,14 +108,14 @@ export default (Client) => describe('users', () => {
         // `differentUser` gets set in 'get all available users'
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
         expect(differentUser).not.toBeNull();
-        const user = client.getUserByEmail(differentUser.email);
+        const user = client.User.getUserByEmail(differentUser.email);
         expect(user).toMatchObject(ALLUSERS.mock);
         done();
     });
 
     test('get all users from client', (done) => {
         // only available once `_onLoadUsers` has been called once (via `loadUsers`)
-        const usersData = client.getAllUsers();
+        const usersData = client.User.getAllUsers();
         Object.values(usersData).forEach((user) => {
             expect(user).toMatchObject(ALLUSERS.mock);
             if (user.username === USER.username) {
@@ -129,12 +139,12 @@ export default (Client) => describe('users', () => {
             });
             done();
         });
-        client.loadChannels();
+        client.Channel.loadChannels();
     });
 
     test('get all channels from client', (done) => {
         // only available once `_onChannels` has been called once (via `loadChannels`)
-        const channelData = client.getAllChannels();
+        const channelData = client.Channel.getAllChannels();
         Object.keys(channelData).forEach((channelId) => {
             expect(channelData[channelId]).toMatchObject(CHANNEL.mock);
         });
@@ -145,8 +155,8 @@ export default (Client) => describe('users', () => {
         // only available once `_onChannels` has been called once (via `loadChannels`)
         // `privateChannel` and `publicChannel` get set in
         // 'get all channels from current team for user'
-        expect(client.getChannelByID(privateChannel.id)).toMatchObject(CHANNEL.mock);
-        expect(client.getChannelByID(publicChannel.id)).toMatchObject(CHANNEL.mock);
+        expect(client.Channel.getChannelByID(privateChannel.id)).toMatchObject(CHANNEL.mock);
+        expect(client.Channel.getChannelByID(publicChannel.id)).toMatchObject(CHANNEL.mock);
         done();
     });
 });

@@ -1,4 +1,4 @@
-interface User {
+interface IUser {
     id: string;
     create_at: number;
     update_at: number;
@@ -12,6 +12,8 @@ interface User {
     last_name: string;
     position: string;
     roles: string;
+    notify_props?: INotifyProps;
+    last_password_update?: number;
     locale: string;
     timezone: {
         automaticTimezone: string;
