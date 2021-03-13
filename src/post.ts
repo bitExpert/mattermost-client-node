@@ -108,6 +108,38 @@ class Post {
         );
     }
 
+    /**
+     * execute command(s)
+     * @Todo tests
+     */
+    postCommand(cmd: any, channelID: string): any {
+        const postData: any = {
+            command: cmd,
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            channel_id: channelID,
+        };
+        const chunks = this._chunkMessage(postData.command);
+        postData.command = chunks.shift();
+
+        return this.client.Api.apiCall(
+            'POST',
+            '/commands/execute',
+            postData,
+            (_data: any, _headers: any) => {
+                this.client.logger.debug('Executed command.');
+
+                if ((chunks != null ? chunks.length : undefined) > 0) {
+                    const command = chunks.join();
+                    const chunksLenght = chunks ? chunks.length : undefined;
+                    this.client.logger.debug(`Recursively posting remainder of command: (${chunksLenght})`);
+                    return this.postCommand(command, channelID);
+                }
+
+                return true;
+            },
+        );
+    }
+
     // @Todo tests
     customMessage(postData: any, channelID: string): any {
         let chunks: any;
